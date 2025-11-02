@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.5.3] - 2025-11-02
+
+### Added
+- Override HT capability: [#97](https://github.com/ex-ml/Hassio-Access-Point/pull/97)
+
 ## [0.5.2.1] - 2024-04-02
 
 ### Fixed
