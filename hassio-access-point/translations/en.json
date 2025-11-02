@@ -56,6 +56,10 @@
 			"name": "",
 			"description": ""
 		},
+		"ht_capab": {
+			"name": "HT Capabilities",
+			"description": "HT capabilities (list of flags)"
+		},
 		"hostapd_config_override": {
 			"name": "HOSTAPD Custom Configuration",
 			"description": "A list of options to append to the `hostapd.conf` file. Don't touch if you don't know what you're doing."

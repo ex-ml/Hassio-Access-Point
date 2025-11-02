@@ -56,6 +56,10 @@
 			"name": "",
 			"description": ""
 		},
+		"ht_capab": {
+			"name": "HT Capabilities",
+			"description": "Capacités HT (liste des drapeaux)"
+		},
 		"hostapd_config_override": {
 			"name": "Configuration personnalisée de HOSTAPD",
 			"description": "Liste d'options à ajouter au fichier `hostpad.conf`. Ne pas modifier si vous ne savez pas ce que vous faîtes."
