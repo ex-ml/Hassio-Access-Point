@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.5.4] - 2025-11-03
+
+### Added
+- Disable Internet access without host reboot: [#100](https://github.com/ex-ml/Hassio-Access-Point/pull/100)
+
 ## [0.5.3] - 2025-11-02
 
 ### Added
