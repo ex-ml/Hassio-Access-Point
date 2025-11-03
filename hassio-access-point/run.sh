@@ -47,6 +47,10 @@ DNSMASQ_CONFIG_OVERRIDE=$(bashio::config 'dnsmasq_config_override' )
 ALLOW_MAC_ADDRESSES=$(bashio::config 'allow_mac_addresses' )
 DENY_MAC_ADDRESSES=$(bashio::config 'deny_mac_addresses' )
 DEBUG=$(bashio::config 'debug' )
+HT_CAPAB=$(bashio::config 'ht_capab')
+if [ -z "${HT_CAPAB}" ] || [ "${HT_CAPAB}" = "null" ]; then
+  HT_CAPAB='[HT40][SHORT-GI-20][DSSS_CCK-40]'
+fi
 HOSTAPD_CONFIG_OVERRIDE=$(bashio::config 'hostapd_config_override' )
 CLIENT_INTERNET_ACCESS=$(bashio::config.false 'client_internet_access'; echo $?)
 CLIENT_DNS_OVERRIDE=$(bashio::config 'client_dns_override' )
@@ -102,6 +106,8 @@ logger "Add to hostapd.conf: channel=$CHANNEL" 1
 echo "channel=$CHANNEL"'\n' >> /hostapd.conf
 logger "Add to hostapd.conf: ignore_broadcast_ssid=$HIDE_SSID" 1
 echo "ignore_broadcast_ssid=$HIDE_SSID"$'\n' >> /hostapd.conf
+logger "Add to hostapd.conf: ht_capab=$HT_CAPAB" 1
+echo "ht_capab=$HT_CAPAB"$'\n' >> /hostapd.conf
 
 ### MAC address filtering
 ## Allow is more restrictive, so we prioritise that and set

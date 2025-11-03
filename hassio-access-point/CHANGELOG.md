@@ -1,10 +1,15 @@
 # Changelog
 
+## [0.5.3] - 2025-11-02
+
+### Added
+- Override HT capability: [#97](https://github.com/ex-ml/Hassio-Access-Point/pull/97)
+
 ## [0.5.2.1] - 2024-04-02
 
 ### Fixed
 - Hotfix for a typo in the previous version
-- Closes [#73](https://github.com/mattlongman/Hassio-Access-Point/issues/73) (Thanks for the issue, @muellermartin!)
+- Closes [#73](https://github.com/ex-ml/Hassio-Access-Point/issues/73) (Thanks for the issue, @muellermartin!)
 
 ## [0.5.2] - 2024-04-02
 
@@ -14,11 +19,11 @@
 ## [0.5.1] - 2024-03-11
 
 ### Added
--  [PR-69](https://github.com/mattlongman/Hassio-Access-Point/pull/) (nice!!!) from [Hactys](https://github.com/Hactys): Added French translation for configs
+-  [PR-69](https://github.com/ex-ml/Hassio-Access-Point/pull/) (nice!!!) from [Hactys](https://github.com/Hactys): Added French translation for configs
 
 ## [0.5.0] - 2024-02-27
 
-All changes for this version are in [PR-63](https://github.com/mattlongman/Hassio-Access-Point/pull/63) from [ROBOT0-VT](https://github.com/ROBOT0-VT) (New maintainer! =D).
+All changes for this version are in [PR-63](https://github.com/ex-ml/Hassio-Access-Point/pull/63) from [ROBOT0-VT](https://github.com/ROBOT0-VT) (New maintainer! =D).
 
 ### Added
 - Validation for addon configuration menu
@@ -35,12 +40,12 @@ All changes for this version are in [PR-63](https://github.com/mattlongman/Hassi
 ## [0.4.8] - 2023-10-19
 
 ### Fixed
-- [PR-56](https://github.com/mattlongman/Hassio-Access-Point/pull/56) from [rrooggiieerr](https://github.com/rrooggiieerr): "Breaking Change: On Arm based boards network names are enumerated based on device tree. This means that the first Ethernet devices will no longer be named eth0 but end0. This pull request proposes a solution by using the default route interface to forward client internet access to."
+- [PR-56](https://github.com/ex-ml/Hassio-Access-Point/pull/56) from [rrooggiieerr](https://github.com/rrooggiieerr): "Breaking Change: On Arm based boards network names are enumerated based on device tree. This means that the first Ethernet devices will no longer be named eth0 but end0. This pull request proposes a solution by using the default route interface to forward client internet access to."
 
 ## [0.4.7] - 2023-06-23
 
 ### Fixed
-- IPtables dependency change as noted in [issue 42](https://github.com/mattlongman/Hassio-Access-Point/issues/42#issuecomment-1579294919). Thanks to [@tomduijf](https://github.com/tomduijf) for submitting [PR 48](https://github.com/mattlongman/Hassio-Access-Point/pull/48).
+- IPtables dependency change as noted in [issue 42](https://github.com/ex-ml/Hassio-Access-Point/issues/42#issuecomment-1579294919). Thanks to [@tomduijf](https://github.com/tomduijf) for submitting [PR 48](https://github.com/ex-ml/Hassio-Access-Point/pull/48).
 
 ## [0.4.6] - 2023-04-23
 
@@ -49,17 +54,17 @@ All changes for this version are in [PR-63](https://github.com/mattlongman/Hassi
 ## [0.4.4] - 2022-12-20
 
 ### Fixed
-- [Issue](https://github.com/mattlongman/Hassio-Access-Point/issues/11) - Implemented changes detailed by @dingausmwald [here](https://github.com/mattlongman/Hassio-Access-Point/issues/11#issuecomment-1360142164)
+- [Issue](https://github.com/ex-ml/Hassio-Access-Point/issues/11) - Implemented changes detailed by @dingausmwald [here](https://github.com/ex-ml/Hassio-Access-Point/issues/11#issuecomment-1360142164)
 
 ## [0.4.3] - 2022-06-21
 
 ### Fixed
-- [Issue](https://github.com/mattlongman/Hassio-Access-Point/issues/31) from @adosikas: `nmcli: command not found`. Added `apk add networkmanager-cli` to Dockerfile. Found this via [this PR](https://github.com/hassio-addons/addon-ssh/pull/415).
+- [Issue](https://github.com/ex-ml/Hassio-Access-Point/issues/31) from @adosikas: `nmcli: command not found`. Added `apk add networkmanager-cli` to Dockerfile. Found this via [this PR](https://github.com/hassio-addons/addon-ssh/pull/415).
 
 ## [0.4.2] - 2022-06-14
 
 ### Added
-- [PR](https://github.com/mattlongman/Hassio-Access-Point/pull/23) from @esotericnonsense (thanks!): Added a new config addon option: dnsmasq_config_override to allow additions/overrides to the dnsmasq config file, for example in order to add static DHCP leases with the dhcp-host= option. This option operates similarly to hostapd_config_override.
+- [PR](https://github.com/ex-ml/Hassio-Access-Point/pull/23) from @esotericnonsense (thanks!): Added a new config addon option: dnsmasq_config_override to allow additions/overrides to the dnsmasq config file, for example in order to add static DHCP leases with the dhcp-host= option. This option operates similarly to hostapd_config_override.
 
 ## [0.4.1] - 2021-07-21
 
@@ -69,22 +74,22 @@ All changes for this version are in [PR-63](https://github.com/mattlongman/Hassi
 ## [0.4.0] - 2021-07-10
 
 ### Added
-- Feature request: [Route traffic from wlan0 to eth0](https://github.com/mattlongman/Hassio-Access-Point/issues/5). Internet access for clients can be enabled with `client_internet_access: '1'`. If DHCP is also enabled, Hassio-Access-Point will try to get the parent host's DNS servers (not just container DNS servers), and server to clients as part of the DHCP config. This can be overridden with e.g. `client_dns_override: ['1.1.1.1', '8.8.8.8']`. If DHCP is not enabled, `client_internet_access: '1'` will still work, but DNS server will need to be set manually as with the rest of the IP config.
+- Feature request: [Route traffic from wlan0 to eth0](https://github.com/ex-ml/Hassio-Access-Point/issues/5). Internet access for clients can be enabled with `client_internet_access: '1'`. If DHCP is also enabled, Hassio-Access-Point will try to get the parent host's DNS servers (not just container DNS servers), and server to clients as part of the DHCP config. This can be overridden with e.g. `client_dns_override: ['1.1.1.1', '8.8.8.8']`. If DHCP is not enabled, `client_internet_access: '1'` will still work, but DNS server will need to be set manually as with the rest of the IP config.
 
 ## [0.3.1] - 2020-10-21
 
 ### Fixed
-- Conflict on port 53, as per [this issue](https://github.com/mattlongman/Hassio-Access-Point/issues/3). Added `port=0` to dnsmasq.conf as a fix (to disable DNS), but will explore expanding the DNS options as part of a future update.
+- Conflict on port 53, as per [this issue](https://github.com/ex-ml/Hassio-Access-Point/issues/3). Added `port=0` to dnsmasq.conf as a fix (to disable DNS), but will explore expanding the DNS options as part of a future update.
 
 ## [0.3.0] - 2020-10-15
 
 ### Added
-- Added a new config addon option: hostapd_config_override to allow additions/overrides to the hostapd config file (run.sh appends to the config file once everything else has been run, so for overriding an existing entry in the file, the later entry will take precedence). hostapd_config_override is a dictionary, so even if you're not overriding anything, `hostapd_config_override: []` must be in the addon options to allow you to save the addon config (if anyone knows how to make dictionaries optional, I'd love to know how..). Fix for [this](https://github.com/mattlongman/Hassio-Access-Point/issues/2).
+- Added a new config addon option: hostapd_config_override to allow additions/overrides to the hostapd config file (run.sh appends to the config file once everything else has been run, so for overriding an existing entry in the file, the later entry will take precedence). hostapd_config_override is a dictionary, so even if you're not overriding anything, `hostapd_config_override: []` must be in the addon options to allow you to save the addon config (if anyone knows how to make dictionaries optional, I'd love to know how..). Fix for [this](https://github.com/ex-ml/Hassio-Access-Point/issues/2).
 
 ## [0.2.1] - 2020-10-13
 
 ### Fixed
-- [Issue](https://github.com/mattlongman/Hassio-Access-Point/issues/1) where AP started and clients could connect, but IP addresses were not being assigned. dnsmasq error: "dnsmasq: warning: interface wlan0 does not currently exist". This seems to be caused by the interface not having an IP address set. Not sure why this isn't being set via interfaces file, but added an ifconfig command to set address/subnet mask/broadcast address.
+- [Issue](https://github.com/ex-ml/Hassio-Access-Point/issues/1) where AP started and clients could connect, but IP addresses were not being assigned. dnsmasq error: "dnsmasq: warning: interface wlan0 does not currently exist". This seems to be caused by the interface not having an IP address set. Not sure why this isn't being set via interfaces file, but added an ifconfig command to set address/subnet mask/broadcast address.
 
 ## [0.2.0] - 2020-09-25
 

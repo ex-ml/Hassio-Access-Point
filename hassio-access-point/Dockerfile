@@ -1,7 +1,7 @@
 ARG BUILD_FROM
 FROM $BUILD_FROM
 
-MAINTAINER Matt Longman <git@mattlongman.com>
+MAINTAINER ex-ml <ex_ml@sent.com>
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
