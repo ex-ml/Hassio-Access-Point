@@ -28,7 +28,6 @@ options:
   allow_mac_addresses: []
   deny_mac_addresses: []
   debug: 0
-  ht_capab:
   hostapd_config_override: []
   client_internet_access: false
   client_dns_override: []
