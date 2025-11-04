@@ -1,6 +1,6 @@
 ---
 name: Hass.io Access Point
-version: 0.5.3.1
+version: 0.5.3.2
 slug: hassio-access-point
 description: Create a WiFi access point to directly connect devices to Home Assistant
 arch: [armhf, armv7, aarch64, amd64, i386]
@@ -50,7 +50,7 @@ schema:
   deny_mac_addresses:
     - match(^([0-9a-fA-F]{2}:){4}[0-9a-fA-F]{2})?
   debug: int(0,2)
-  ht_capab: match(^(\[[A-Z0-9][A-Z0-9_+-]*\])+$)
+  ht_capab: match(^(\[[A-Z0-9][A-Z0-9_+-]*\])+$)?
   hostapd_config_override:
     - str?
   client_internet_access: bool
