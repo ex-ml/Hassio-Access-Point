@@ -14,7 +14,8 @@ logger(){
     msg=$1
     level=$2
     if [ $DEBUG -ge $level ]; then
-        echo $msg
+        timestamp=$(date +%Y%m%d-%H:%M:%S)
+        echo "[$timestamp] $msg"
     fi
 }
 
