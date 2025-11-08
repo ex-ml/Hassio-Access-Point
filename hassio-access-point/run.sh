@@ -240,15 +240,18 @@ fi
 
 # jail feature testing: https://github.com/ex-ml/Hassio-Access-Point/issues/72
 # blocks specific MAC addresses from accessing internet, but still allow them to connect to AP
-# add rules with comment: ap-addon-block-inet - allow rules to be removed/readded
-while true; do
-    rule_num=$(iptables-nft -L FORWARD --line-numbers -n 2>/dev/null | grep "ap-addon-block-inet" 2>/dev/null | head -1 | awk '{print $1}' 2>/dev/null)
-    if [ -z "$rule_num" ] || [ "$rule_num" = "num" ]; then
-        # "num" appears in the header line. If we match that, there are 0 rules
-        break
-    fi
-    iptables-nft -D FORWARD "$rule_num" 2>/dev/null || break
-done
+# add rules with comment: ap-addon-block-inet - allow rules to be removed/re-added
+# first check if iptables is available and FORWARD chain exists before attempting cleanup
+if command -v iptables-nft >/dev/null 2>&1 && iptables-nft -L FORWARD >/dev/null 2>&1; then
+    while true; do
+        rule_num=$(iptables-nft -L FORWARD --line-numbers -n 2>/dev/null | grep "ap-addon-block-inet" 2>/dev/null | head -1 | awk '{print $1}' 2>/dev/null)
+        if [ -z "$rule_num" ] || [ "$rule_num" = "num" ]; then
+            # "num" appears in the header line. If we match that, there are 0 rules
+            break
+        fi
+        iptables-nft -D FORWARD "$rule_num" 2>/dev/null || break
+    done
+fi
 
 if [ ${#DENY_MAC_INTERNET} -ge 1 ]; then
     DENIED_INTERNET=($DENY_MAC_INTERNET)
