@@ -241,25 +241,25 @@ fi
 # jail feature testing: https://github.com/ex-ml/Hassio-Access-Point/issues/72
 # blocks specific MAC addresses from accessing internet, but still allow them to connect to AP
 # add rules with comment: ap-addon-block-inet - allow rules to be removed/readded
-while true; do
-    rule_num=$(iptables-nft -L FORWARD --line-numbers -n | grep "ap-addon-block-inet" | head -1 | awk '{print $1}')
-    if [ -z "$rule_num" ] || [ "$rule_num" = "num" ]; then
-        # "num" appears in the header line. If we match that there are 0 rules
-        break
-    fi
-    iptables-nft -D FORWARD "$rule_num" 2>/dev/null || break
-done
+# while true; do
+#     rule_num=$(iptables-nft -L FORWARD --line-numbers -n | grep "ap-addon-block-inet" | head -1 | awk '{print $1}')
+#     if [ -z "$rule_num" ] || [ "$rule_num" = "num" ]; then
+#         # "num" appears in the header line. If we match that there are 0 rules
+#         break
+#     fi
+#     iptables-nft -D FORWARD "$rule_num" 2>/dev/null || break
+# done
 
-if [ ${#DENY_MAC_INTERNET} -ge 1 ]; then
-    DENIED_INTERNET=($DENY_MAC_INTERNET)
-    logger "# Blocking MAC addresses from internet access:" 0
-    for mac in "${DENIED_INTERNET[@]}"; do
-        # insert (-I) to insert rule at beginning, so that DROPs are before ACCEPTs
-        # block traffic from specified MACs going from AP interface to inet int
-        iptables-nft -I FORWARD -i $INTERFACE -m mac --mac-source "$mac" -o $DEFAULT_ROUTE_INTERFACE -j DROP -m comment --comment "ap-addon-block-inet"
-        logger "Blocked MAC $mac from internet access" 0
-    done
-fi
+# if [ ${#DENY_MAC_INTERNET} -ge 1 ]; then
+#     DENIED_INTERNET=($DENY_MAC_INTERNET)
+#     logger "# Blocking MAC addresses from internet access:" 0
+#     for mac in "${DENIED_INTERNET[@]}"; do
+#         # insert (-I) to insert rule at beginning, so that DROPs are before ACCEPTs
+#         # block traffic from specified MACs going from AP interface to inet int
+#         iptables-nft -I FORWARD -i $INTERFACE -m mac --mac-source "$mac" -o $DEFAULT_ROUTE_INTERFACE -j DROP -m comment --comment "ap-addon-block-inet"
+#         logger "Blocked MAC $mac from internet access" 0
+#     done
+# fi
 
 # Start dnsmasq if DHCP is enabled in config
 if $(bashio::config.true "dhcp"); then
