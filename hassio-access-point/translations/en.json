@@ -52,6 +52,10 @@
 			"name": "MAC Address Blocklist",
 			"description": "A list of the MAC addresses that are NOT allowed to connect to the network. Any other devices will be allowed."
 		},
+		"deny_mac_internet": {
+			"name": "MAC Address Internet Blocklist",
+			"description": "A list of the MAC addresses that are NOT allowed to access the internet. Any other devices will be allowed."
+		},
 		"debug": {
 			"name": "",
 			"description": ""

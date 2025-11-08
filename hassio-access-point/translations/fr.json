@@ -52,6 +52,10 @@
 			"name": "Liste noire d'adresse MAC",
 			"description": "Liste des addresses MAC NON autorisées à se connecter au réseau. Tout les autres appareils seront autorisés."
 		},
+		"deny_mac_internet": {
+			"name": "Liste noire d'adresse MAC pour internet",
+			"description": "Liste des addresses MAC NON autorisées à accéder à internet. Tout les autres appareils seront autorisés."
+		},
 		"debug": {
 			"name": "",
 			"description": ""

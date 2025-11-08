@@ -241,8 +241,7 @@ fi
 # jail feature testing: https://github.com/ex-ml/Hassio-Access-Point/issues/72
 # blocks specific MAC addresses from accessing internet, but still allow them to connect to AP
 # add rules with comment: ap-addon-block-inet - allow rules to be removed/re-added
-# remove any existing blocking rules first
-# test wrap entire section to ensure it can never cause script failure
+# use set +e in subshell to ensure it doesn't error if iptables isn't available
 logger "# Checking iptables and cleaning up existing internet-block rules..." 1
 (set +e; if command -v iptables-nft >/dev/null 2>&1 && iptables-nft -L FORWARD >/dev/null 2>&1; then
     logger "iptables-nft available and FORWARD chain exists, checking for existing rules..." 1
@@ -257,7 +256,7 @@ logger "# Checking iptables and cleaning up existing internet-block rules..." 1
     done
     logger "Cleanup complete" 1
 else
-    logger "iptables-nft not available or FORWARD chain doesn't exist, skipping cleanup (non-critical)" 1
+    logger "iptables-nft not available or FORWARD chain doesn't exist, skipping cleanup" 1
 fi; true)
 
 if [ ${#DENY_MAC_INTERNET} -ge 1 ]; then

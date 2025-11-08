@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.5.5] - 2025-11-08
+
+### Added
+- Block specific MAC addresses from accessing the internet ('jail' feature request: https://github.com/ex-ml/Hassio-Access-Point/issues/72)
+
 ## [0.5.4] - 2025-11-03
 
 ### Added
