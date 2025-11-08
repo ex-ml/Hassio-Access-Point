@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.5.5.1] - 2025-11-08
+
+### Fixed
+- Issue: https://github.com/ex-ml/Hassio-Access-Point/issues/79 - addon fails to start if ethernet/internet isn't available following reboot. nmcli check for DNS appears to be the cause (if manually setting `client dns override`, it still works).
+
 ## [0.5.5] - 2025-11-08
 
 ### Added
