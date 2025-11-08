@@ -204,13 +204,37 @@ else
 	logger "# DHCP not enabled. Skipping dnsmasq" 1
 fi
 
+is_masquerading_enabled() {
+    iptables-nft -t nat -C POSTROUTING -o $DEFAULT_ROUTE_INTERFACE -j MASQUERADE -m comment --comment "ap-addon-inet" 2>/dev/null
+}
+
+is_forwarding_enabled() {
+    iptables-nft -C FORWARD -i $INTERFACE -o $DEFAULT_ROUTE_INTERFACE -j ACCEPT -m comment --comment "ap-addon-inet" 2>/dev/null
+}
+
 # Setup Client Internet Access
 if $(bashio::config.true "client_internet_access"); then
+    ## Add masquerade if not already present
+    if ! is_masquerading_enabled; then
+        iptables-nft -t nat -A POSTROUTING -o $DEFAULT_ROUTE_INTERFACE -j MASQUERADE -m comment --comment "ap-addon-inet"
+    fi
 
-    ## Route traffic
-    iptables-nft -t nat -A POSTROUTING -o $DEFAULT_ROUTE_INTERFACE -j MASQUERADE
-    iptables-nft -P FORWARD ACCEPT
-    iptables-nft -F FORWARD
+    ## Allow forwarding if not already allowed
+    if ! is_forwarding_enabled; then
+        iptables-nft -A FORWARD -i $INTERFACE -o $DEFAULT_ROUTE_INTERFACE -j ACCEPT -m comment --comment "ap-addon-inet"
+        iptables-nft -A FORWARD -i $DEFAULT_ROUTE_INTERFACE -o $INTERFACE -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT -m comment --comment "ap-addon-inet"
+    fi
+else
+    ## Remove masquerade if present
+    if is_masquerading_enabled; then
+        iptables-nft -t nat -D POSTROUTING -o $DEFAULT_ROUTE_INTERFACE -j MASQUERADE -m comment --comment "ap-addon-inet"
+    fi
+
+    ## Remove forwarding if present
+    if is_forwarding_enabled; then
+        iptables-nft -D FORWARD -i $INTERFACE -o $DEFAULT_ROUTE_INTERFACE -j ACCEPT -m comment --comment "ap-addon-inet"
+        iptables-nft -D FORWARD -i $DEFAULT_ROUTE_INTERFACE -o $INTERFACE -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT -m comment --comment "ap-addon-inet"
+    fi
 fi
 
 # Start dnsmasq if DHCP is enabled in config
