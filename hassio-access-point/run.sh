@@ -14,7 +14,8 @@ logger(){
     msg=$1
     level=$2
     if [ $DEBUG -ge $level ]; then
-        echo $msg
+        timestamp=$(date +%Y%m%d-%H:%M:%S)
+        echo "[$timestamp] $msg"
     fi
 }
 
@@ -177,10 +178,18 @@ if $(bashio::config.true "dhcp"); then
             echo "$dns_string"$'\n' >> /dnsmasq.conf
             logger "Add custom DNS: $dns_string" 0
         else
-            IFS=$'\n' read -r -d '' -a dns_array < <( nmcli device show | grep IP4.DNS | awk '{print $2}' && printf '\0' )
+            # try to get DNS servers from host via NetworkManager
+            dns_array=()
+            if nmcli device show >/dev/null 2>&1; then
+                IFS=$'\n' read -r -d '' -a dns_array < <( nmcli device show 2>/dev/null | grep IP4.DNS 2>/dev/null | awk '{print $2}' 2>/dev/null && printf '\0' ) || true
+            fi
 
             if [ ${#dns_array[@]} -eq 0 ]; then
-                logger "Couldn't get DNS servers from host. Consider setting with 'client_dns_override' config option." 0
+                # no DNS from NetworkManager (off-grid mode) - use AP's IP address as DNS
+                logger "Couldn't get DNS servers from host. Using AP IP address ($ADDRESS) as DNS server." 0
+                dns_string="dhcp-option=6,$ADDRESS"
+                echo "$dns_string"$'\n' >> /dnsmasq.conf
+                logger "Add DNS: $dns_string" 0
             else
                 dns_string="dhcp-option=6"
                 for dns_entry in "${dns_array[@]}"; do
