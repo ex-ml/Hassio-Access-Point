@@ -243,6 +243,12 @@ if $(bashio::config.true "dhcp"); then
     dnsmasq -C /dnsmasq.conf
 fi
 
+while IFS= read -r cmd; do
+  [ -z "$cmd" ] && continue
+  echo "Running: $cmd"
+  eval "$cmd"
+done <<< "$(bashio::config 'custom_commands')"
+
 logger "## Starting hostapd daemon" 1
 # If debug level is greater than 1, start hostapd in debug mode
 if [ $DEBUG -gt 1 ]; then
