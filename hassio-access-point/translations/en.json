@@ -75,6 +75,10 @@
 		"dnsmasq_config_override": {
 			"name": "DNSMASQ Custom Configuration",
 			"description": "A list of options to append to the `dnsmasq.conf` file. Don't touch if you don't know what you're doing."
+		},
+		"custom_commands": {
+			"name": "Custom Commands",
+			"description": "A list of commands that will be executed before `hostapd` is started. Don't touch if you don't know what you're doing."
 		}
 	}
 }
