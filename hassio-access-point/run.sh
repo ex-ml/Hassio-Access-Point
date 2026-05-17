@@ -216,6 +216,34 @@ if [ "$TRANSPARENT_UPLINK" = true ]; then
     logger "Run command: ifconfig $BRIDGE_DEVICE $ADDRESS netmask $NETMASK broadcast $BROADCAST" 1
     ifconfig $BRIDGE_DEVICE $ADDRESS netmask $NETMASK broadcast $BROADCAST
     
+    # In transparent bridge mode, disable proxy_arp - we want pure layer 2 forwarding
+    logger "Run command: echo 0 > /proc/sys/net/ipv4/conf/$BRIDGE_DEVICE/proxy_arp" 1
+    echo 0 > /proc/sys/net/ipv4/conf/$BRIDGE_DEVICE/proxy_arp 2>/dev/null || true
+    
+    # Also disable on upstream interface  
+    if [ -f /proc/sys/net/ipv4/conf/$ROUTE_INTERFACE/proxy_arp ]; then
+        echo 0 > /proc/sys/net/ipv4/conf/$ROUTE_INTERFACE/proxy_arp 2>/dev/null || true
+    fi
+    
+    # Enable IP forwarding for bridge operation
+    logger "Run command: echo 1 > /proc/sys/net/ipv4/ip_forward" 1
+    echo 1 > /proc/sys/net/ipv4/ip_forward
+    
+    # Disable bridge netfilter to prevent iptables from filtering bridged packets
+    # This is crucial for transparent bridge mode - we want pure layer 2 bridging
+    if [ -f /proc/sys/net/bridge/bridge-nf-call-iptables ]; then
+        logger "Run command: echo 0 > /proc/sys/net/bridge/bridge-nf-call-iptables" 1
+        echo 0 > /proc/sys/net/bridge/bridge-nf-call-iptables
+    fi
+    if [ -f /proc/sys/net/bridge/bridge-nf-call-ip6tables ]; then
+        logger "Run command: echo 0 > /proc/sys/net/bridge/bridge-nf-call-ip6tables" 1
+        echo 0 > /proc/sys/net/bridge/bridge-nf-call-ip6tables
+    fi
+    if [ -f /proc/sys/net/bridge/bridge-nf-call-arptables ]; then
+        logger "Run command: echo 0 > /proc/sys/net/bridge/bridge-nf-call-arptables" 1
+        echo 0 > /proc/sys/net/bridge/bridge-nf-call-arptables
+    fi
+    
     # Re-attempt default route now that bridge has an IP address
     if [ -n "$DEFAULT_GATEWAY" ]; then
         logger "Run command: ip route replace default via $DEFAULT_GATEWAY dev $BRIDGE_DEVICE (retry with IP configured)" 1
@@ -389,28 +417,24 @@ elif [ -n "$DHCP_RELAY_SERVER" ]; then
         done
     fi
 elif [ "$TRANSPARENT_UPLINK" = true ]; then
-    # In transparent bridge mode, relay DHCP requests to the upstream gateway
-    logger "# Transparent mode: Setting up DHCP relay to upstream gateway" 1
-    logger "Add to dnsmasq.conf: interface=$INTERFACE" 1
-    echo "interface=$INTERFACE"$'\n' >> /dnsmasq.conf
-    logger "Add to dnsmasq.conf: bind-interfaces" 1
-    echo "bind-interfaces"$'\n' >> /dnsmasq.conf
+    # In transparent bridge mode, DHCP packets should pass through the bridge transparently
+    # WITHOUT dnsmasq relay - the bridge forwards broadcasts to the upstream DHCP server
+    logger "# Transparent mode: DHCP packets will be forwarded transparently through bridge" 1
+    logger "Clients will receive IP addresses directly from upstream DHCP server at $DEFAULT_GATEWAY" 1
+    # Note: dnsmasq will NOT be started in transparent mode unless custom config is provided
     
-    if [ -n "$DEFAULT_GATEWAY" ]; then
-        logger "Add to dnsmasq.conf: dhcp-relay=$ADDRESS,$DEFAULT_GATEWAY,$INTERFACE" 1
-        echo "dhcp-relay=$ADDRESS,$DEFAULT_GATEWAY,$INTERFACE"$'\n' >> /dnsmasq.conf
-        logger "DHCP requests will be relayed to upstream gateway: $DEFAULT_GATEWAY" 1
-    else
-        bashio::log.warning "No gateway found for DHCP relay in transparent mode. Clients may not get IP addresses."
-    fi
-
     if [ ${#DNSMASQ_CONFIG_OVERRIDE} -ge 1 ]; then
-        logger "# Custom dnsmasq config options:" 0
+        logger "# Custom dnsmasq config options detected - starting dnsmasq" 0
         DNSMASQ_OVERRIDES=($DNSMASQ_CONFIG_OVERRIDE)
         for override in "${DNSMASQ_OVERRIDES[@]}"; do
             echo "$override"$'\n' >> /dnsmasq.conf
             logger "Add to dnsmasq.conf: $override" 0
         done
+        # Set flag to start dnsmasq later
+        START_DNSMASQ_IN_TRANSPARENT_MODE=true
+    else
+        # No dnsmasq in transparent mode - bridge handles everything at layer 2
+        START_DNSMASQ_IN_TRANSPARENT_MODE=false
     fi
 else
 	logger "# DHCP not enabled. Skipping dnsmasq" 1
@@ -449,9 +473,12 @@ else
 fi
 
 # Start dnsmasq if DHCP is enabled in config or relay server is configured.
-if $(bashio::config.true "dhcp") || [ -n "$DHCP_RELAY_SERVER" ]; then
+# In transparent mode, only start if custom config is provided.
+if $(bashio::config.true "dhcp") || [ -n "$DHCP_RELAY_SERVER" ] || [ "${START_DNSMASQ_IN_TRANSPARENT_MODE:-false}" = "true" ]; then
     logger "## Starting dnsmasq daemon" 1
     dnsmasq -C /dnsmasq.conf
+else
+    logger "## Skipping dnsmasq - transparent bridge mode with no custom DNS config" 1
 fi
 
 logger "## Starting hostapd daemon" 1
