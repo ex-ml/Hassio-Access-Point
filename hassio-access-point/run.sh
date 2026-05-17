@@ -56,6 +56,18 @@ DNSMASQ_CONFIG_OVERRIDE=$(bashio::config 'dnsmasq_config_override' )
 # Get the Default Route interface
 DEFAULT_ROUTE_INTERFACE=$(ip route show default | awk '/^default/ { print $5 }')
 
+# iptables interface matching does not accept '.' in interface names (e.g. vlan subinterfaces like eth0.20).
+# Convert such names to a '+' wildcard (eth0+) so rules can be applied safely.
+IPTABLES_ROUTE_INTERFACE="$DEFAULT_ROUTE_INTERFACE"
+if [[ "$IPTABLES_ROUTE_INTERFACE" == *.* ]]; then
+    IPTABLES_ROUTE_INTERFACE="${IPTABLES_ROUTE_INTERFACE%%.*}+"
+fi
+
+logger "Detected default route interface: $DEFAULT_ROUTE_INTERFACE" 1
+if [ "$DEFAULT_ROUTE_INTERFACE" != "$IPTABLES_ROUTE_INTERFACE" ]; then
+    logger "Using iptables-safe upstream matcher: $IPTABLES_ROUTE_INTERFACE" 1
+fi
+
 echo "Starting Hass.io Access Point Addon"
 
 # Setup interface
@@ -205,35 +217,35 @@ else
 fi
 
 is_masquerading_enabled() {
-    iptables-nft -t nat -C POSTROUTING -o $DEFAULT_ROUTE_INTERFACE -j MASQUERADE -m comment --comment "ap-addon-inet" 2>/dev/null
+    iptables-nft -t nat -C POSTROUTING -o "$IPTABLES_ROUTE_INTERFACE" -j MASQUERADE -m comment --comment "ap-addon-inet" 2>/dev/null
 }
 
 is_forwarding_enabled() {
-    iptables-nft -C FORWARD -i $INTERFACE -o $DEFAULT_ROUTE_INTERFACE -j ACCEPT -m comment --comment "ap-addon-inet" 2>/dev/null
+    iptables-nft -C FORWARD -i "$INTERFACE" -o "$IPTABLES_ROUTE_INTERFACE" -j ACCEPT -m comment --comment "ap-addon-inet" 2>/dev/null
 }
 
 # Setup Client Internet Access
 if $(bashio::config.true "client_internet_access"); then
     ## Add masquerade if not already present
     if ! is_masquerading_enabled; then
-        iptables-nft -t nat -A POSTROUTING -o $DEFAULT_ROUTE_INTERFACE -j MASQUERADE -m comment --comment "ap-addon-inet"
+        iptables-nft -t nat -A POSTROUTING -o "$IPTABLES_ROUTE_INTERFACE" -j MASQUERADE -m comment --comment "ap-addon-inet"
     fi
 
     ## Allow forwarding if not already allowed
     if ! is_forwarding_enabled; then
-        iptables-nft -A FORWARD -i $INTERFACE -o $DEFAULT_ROUTE_INTERFACE -j ACCEPT -m comment --comment "ap-addon-inet"
-        iptables-nft -A FORWARD -i $DEFAULT_ROUTE_INTERFACE -o $INTERFACE -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT -m comment --comment "ap-addon-inet"
+        iptables-nft -A FORWARD -i "$INTERFACE" -o "$IPTABLES_ROUTE_INTERFACE" -j ACCEPT -m comment --comment "ap-addon-inet"
+        iptables-nft -A FORWARD -i "$IPTABLES_ROUTE_INTERFACE" -o "$INTERFACE" -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT -m comment --comment "ap-addon-inet"
     fi
 else
     ## Remove masquerade if present
     if is_masquerading_enabled; then
-        iptables-nft -t nat -D POSTROUTING -o $DEFAULT_ROUTE_INTERFACE -j MASQUERADE -m comment --comment "ap-addon-inet"
+        iptables-nft -t nat -D POSTROUTING -o "$IPTABLES_ROUTE_INTERFACE" -j MASQUERADE -m comment --comment "ap-addon-inet"
     fi
 
     ## Remove forwarding if present
     if is_forwarding_enabled; then
-        iptables-nft -D FORWARD -i $INTERFACE -o $DEFAULT_ROUTE_INTERFACE -j ACCEPT -m comment --comment "ap-addon-inet"
-        iptables-nft -D FORWARD -i $DEFAULT_ROUTE_INTERFACE -o $INTERFACE -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT -m comment --comment "ap-addon-inet"
+        iptables-nft -D FORWARD -i "$INTERFACE" -o "$IPTABLES_ROUTE_INTERFACE" -j ACCEPT -m comment --comment "ap-addon-inet"
+        iptables-nft -D FORWARD -i "$IPTABLES_ROUTE_INTERFACE" -o "$INTERFACE" -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT -m comment --comment "ap-addon-inet"
     fi
 fi
 
