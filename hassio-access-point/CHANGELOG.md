@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.5.5] - 2026-05-17
+
+### Added
+- Optional `upstream_interface` config to explicitly set the client internet routing/NAT interface.
+
+### Fixed
+- Handle VLAN-style upstream names (e.g. `end0.20`) in iptables by using a safe interface matcher.
+
 ## [0.5.4] - 2025-11-03
 
 ### Added

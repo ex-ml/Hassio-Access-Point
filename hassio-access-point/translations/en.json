@@ -28,6 +28,10 @@
 			"name": "Network Interface",
 			"description": "The wireless network interface to use to host the network. On a Raspberry Pi, the builtin one will be wlan0 (default)."
 		},
+		"upstream_interface": {
+			"name": "Upstream Interface",
+			"description": "Optional interface to use for client internet access and NAT. Leave empty to auto-detect from the default route."
+		},
 		"hide_ssid": {
 			"name": "Hide Network SSID",
 			"description": "Whether to hide the network SSID. Use with caution."

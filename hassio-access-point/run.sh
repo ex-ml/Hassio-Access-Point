@@ -39,6 +39,7 @@ ADDRESS=$(bashio::config "address")
 NETMASK=$(bashio::config "netmask")
 BROADCAST=$(bashio::config "broadcast")
 INTERFACE=$(bashio::config "interface")
+UPSTREAM_INTERFACE=$(bashio::config "upstream_interface" "")
 HIDE_SSID=$(bashio::config.false "hide_ssid"; echo $?)
 DHCP=$(bashio::config.false "dhcp"; echo $?)
 DHCP_START_ADDR=$(bashio::config "dhcp_start_addr" )
@@ -56,15 +57,25 @@ DNSMASQ_CONFIG_OVERRIDE=$(bashio::config 'dnsmasq_config_override' )
 # Get the Default Route interface
 DEFAULT_ROUTE_INTERFACE=$(ip route show default | awk '/^default/ { print $5 }')
 
+# Allow explicit upstream interface override from configuration.
+if [ -n "$UPSTREAM_INTERFACE" ]; then
+    ROUTE_INTERFACE="$UPSTREAM_INTERFACE"
+else
+    ROUTE_INTERFACE="$DEFAULT_ROUTE_INTERFACE"
+fi
+
 # iptables interface matching does not accept '.' in interface names (e.g. vlan subinterfaces like eth0.20).
 # Convert such names to a '+' wildcard (eth0+) so rules can be applied safely.
-IPTABLES_ROUTE_INTERFACE="$DEFAULT_ROUTE_INTERFACE"
+IPTABLES_ROUTE_INTERFACE="$ROUTE_INTERFACE"
 if [[ "$IPTABLES_ROUTE_INTERFACE" == *.* ]]; then
     IPTABLES_ROUTE_INTERFACE="${IPTABLES_ROUTE_INTERFACE%%.*}+"
 fi
 
 logger "Detected default route interface: $DEFAULT_ROUTE_INTERFACE" 1
-if [ "$DEFAULT_ROUTE_INTERFACE" != "$IPTABLES_ROUTE_INTERFACE" ]; then
+if [ -n "$UPSTREAM_INTERFACE" ]; then
+    logger "Using configured upstream interface override: $UPSTREAM_INTERFACE" 1
+fi
+if [ "$ROUTE_INTERFACE" != "$IPTABLES_ROUTE_INTERFACE" ]; then
     logger "Using iptables-safe upstream matcher: $IPTABLES_ROUTE_INTERFACE" 1
 fi
 

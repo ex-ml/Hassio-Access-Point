@@ -28,6 +28,10 @@
 			"name": "Interface réseau",
 			"description": "L'interface réseau sans-fil à utiliser pour héberger ce réseau. Sur un Raspberry Pi, celle intégrée est wlan0 (défaut)."
 		},
+		"upstream_interface": {
+			"name": "Interface amont",
+			"description": "Interface optionnelle à utiliser pour l'accès Internet des clients et le NAT. Laisser vide pour détecter automatiquement la route par défaut."
+		},
 		"hide_ssid": {
 			"name": "Cacher le SSID du réseau",
 			"description": "Cacher ou non le SSID du réseau. À utiliser avec précausion."
