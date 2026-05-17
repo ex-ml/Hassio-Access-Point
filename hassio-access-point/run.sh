@@ -89,17 +89,41 @@ route_interface_for_target() {
     ip route get "$target" 2>/dev/null | awk '{for (i = 1; i <= NF; i++) if ($i == "dev") { print $(i + 1); exit }}'
 }
 
+gateway_for_interface() {
+    iface=$1
+    
+    if [ -z "$iface" ]; then
+        return 1
+    fi
+    
+    # Try to find a gateway on this specific interface
+    ip route show dev "$iface" 2>/dev/null | awk '/^default/ { print $3; exit }'
+}
+
 DEFAULT_GATEWAY=$(ip route show default | awk '/^default/ { print $3; exit }')
 DEFAULT_ROUTE_INTERFACE=$(ip route show default | awk '/^default/ { print $5; exit }')
 ROUTE_TARGET="$DEFAULT_GATEWAY"
 
 if [ -n "$DHCP_RELAY_SERVER" ]; then
     ROUTE_TARGET="$DHCP_RELAY_SERVER"
+    # In relay mode with same subnet, the relay server is typically also the gateway
+    AP_NET_PREFIX=$(echo "$ADDRESS" | cut -d. -f1-3)
+    RELAY_NET_PREFIX=$(echo "$DHCP_RELAY_SERVER" | cut -d. -f1-3)
+    if [ "$AP_NET_PREFIX" = "$RELAY_NET_PREFIX" ]; then
+        DEFAULT_GATEWAY="$DHCP_RELAY_SERVER"
+        logger "Using DHCP relay server as gateway: $DEFAULT_GATEWAY" 1
+    fi
 fi
 
 # Allow explicit upstream interface override from configuration.
 if [ -n "$UPSTREAM_INTERFACE" ]; then
     ROUTE_INTERFACE="$UPSTREAM_INTERFACE"
+    # Override gateway if the configured interface has its own gateway
+    INTERFACE_GATEWAY=$(gateway_for_interface "$UPSTREAM_INTERFACE")
+    if [ -n "$INTERFACE_GATEWAY" ]; then
+        DEFAULT_GATEWAY="$INTERFACE_GATEWAY"
+        logger "Detected gateway on configured upstream interface $UPSTREAM_INTERFACE: $INTERFACE_GATEWAY" 1
+    fi
 elif [ -n "$ROUTE_TARGET" ]; then
     ROUTE_INTERFACE=$(route_interface_for_target "$ROUTE_TARGET")
 else
