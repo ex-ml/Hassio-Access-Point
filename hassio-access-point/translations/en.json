@@ -48,6 +48,10 @@
 			"name": "DHCP IP Range End",
 			"description": "The end of the IP address range to automatically assign to devices."
 		},
+		"dhcp_relay_server": {
+			"name": "DHCP Relay Server",
+			"description": "Optional upstream DHCP server IP for relay mode. Only used when local DHCP is disabled."
+		},
 		"allow_mac_addresses": {
 			"name": "MAC Address Allowlist",
 			"description": "A list of the MAC addresses that are allowed to connect to the network. Any other devices will be blocked. This overrides the 'MAC Address Blocklist' option."

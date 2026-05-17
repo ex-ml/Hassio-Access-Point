@@ -48,6 +48,10 @@
 			"name": "Fin de la plage IP DHCP",
 			"description": "La fin de la plage d'adresses IP automatiquement assignées aux appareils."
 		},
+		"dhcp_relay_server": {
+			"name": "Serveur relais DHCP",
+			"description": "Adresse IP optionnelle du serveur DHCP amont pour le mode relais. Utilisée uniquement si le DHCP local est désactivé."
+		},
 		"allow_mac_addresses": {
 			"name": "Liste blanche d'adresses MAC",
 			"description": "Liste des addresses MAC autorisées à se connecter au réseau. Tout les autres appareils seront bloqués. Cette liste prime sur l'option 'Liste noire d'adresse MAC'."

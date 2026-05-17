@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.5.6] - 2026-05-17
+
+### Added
+- Optional `dhcp_relay_server` config to relay DHCP requests to an upstream DHCP server when local DHCP is disabled.
+
+### Changed
+- Start dnsmasq in relay mode when `dhcp_relay_server` is configured.
+
 ## [0.5.5] - 2026-05-17
 
 ### Added

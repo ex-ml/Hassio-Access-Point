@@ -29,6 +29,7 @@ Please add
 - **dhcp** (_optional_): Enable or disable DHCP server. 0 = disable, 1 = enable. Defaults to disabled
 - **dhcp_start_addr** (_optional_): Start address for DHCP range. Required if DHCP enabled
 - **dhcp_end_addr** (_optional_): End address for DHCP range. Required if DHCP enabled
+- **dhcp_relay_server** (_optional_): Upstream DHCP server IP (e.g. FritzBox) for relay mode. Used only when `dhcp` is disabled.
 - **allow_mac_addresses** (_optional_): List of MAC addresses to allow. Note: if using allow, blocks everything not in list
 - **deny_mac_addresses** (_optional_): List of MAC addresses to block. Note: if using deny, allows everything not in list
 - **debug** (_optional_): Set logging level. 0 = basic output, 1 = show addon detail, 2 = same as 1 plus run hostapd in debug mode
@@ -55,6 +56,7 @@ Note: use either allow or deny lists for MAC filtering. If using allow, deny wil
     "dhcp": "1",
     "dhcp_start_addr": "192.168.10.10",
     "dhcp_end_addr": "192.168.10.20",
+    "dhcp_relay_server": "",
     "allow_mac_addresses": [],
     "deny_mac_addresses": ['ab:cd:ef:fe:dc:ba'],
     "debug": "0",

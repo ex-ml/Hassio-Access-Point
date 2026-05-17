@@ -44,6 +44,7 @@ HIDE_SSID=$(bashio::config.false "hide_ssid"; echo $?)
 DHCP=$(bashio::config.false "dhcp"; echo $?)
 DHCP_START_ADDR=$(bashio::config "dhcp_start_addr" )
 DHCP_END_ADDR=$(bashio::config "dhcp_end_addr" )
+DHCP_RELAY_SERVER=$(bashio::config "dhcp_relay_server" "")
 DNSMASQ_CONFIG_OVERRIDE=$(bashio::config 'dnsmasq_config_override' )
 ALLOW_MAC_ADDRESSES=$(bashio::config 'allow_mac_addresses' )
 DENY_MAC_ADDRESSES=$(bashio::config 'deny_mac_addresses' )
@@ -53,6 +54,10 @@ HOSTAPD_CONFIG_OVERRIDE=$(bashio::config 'hostapd_config_override' )
 CLIENT_INTERNET_ACCESS=$(bashio::config.false 'client_internet_access'; echo $?)
 CLIENT_DNS_OVERRIDE=$(bashio::config 'client_dns_override' )
 DNSMASQ_CONFIG_OVERRIDE=$(bashio::config 'dnsmasq_config_override' )
+
+if $(bashio::config.true "dhcp") && [ -n "$DHCP_RELAY_SERVER" ]; then
+    logger "Both dhcp and dhcp_relay_server are set. Using local DHCP server mode and ignoring relay." 0
+fi
 
 # Get the Default Route interface
 DEFAULT_ROUTE_INTERFACE=$(ip route show default | awk '/^default/ { print $5 }')
@@ -223,6 +228,24 @@ if $(bashio::config.true "dhcp"); then
             logger "Add to dnsmasq.conf: $override" 0
         done
     fi
+elif [ -n "$DHCP_RELAY_SERVER" ]; then
+    logger "# DHCP relay enabled. Setup dnsmasq relay:" 1
+    logger "Add to dnsmasq.conf: interface=$INTERFACE" 1
+    echo "interface=$INTERFACE"$'\n' >> /dnsmasq.conf
+    logger "Add to dnsmasq.conf: bind-interfaces" 1
+    echo "bind-interfaces"$'\n' >> /dnsmasq.conf
+    logger "Add to dnsmasq.conf: dhcp-relay=$ADDRESS,$DHCP_RELAY_SERVER,$INTERFACE" 1
+    echo "dhcp-relay=$ADDRESS,$DHCP_RELAY_SERVER,$INTERFACE"$'\n' >> /dnsmasq.conf
+
+    # Append override options to dnsmasq.conf
+    if [ ${#DNSMASQ_CONFIG_OVERRIDE} -ge 1 ]; then
+        logger "# Custom dnsmasq config options:" 0
+        DNSMASQ_OVERRIDES=($DNSMASQ_CONFIG_OVERRIDE)
+        for override in "${DNSMASQ_OVERRIDES[@]}"; do
+            echo "$override"$'\n' >> /dnsmasq.conf
+            logger "Add to dnsmasq.conf: $override" 0
+        done
+    fi
 else
 	logger "# DHCP not enabled. Skipping dnsmasq" 1
 fi
@@ -260,8 +283,8 @@ else
     fi
 fi
 
-# Start dnsmasq if DHCP is enabled in config
-if $(bashio::config.true "dhcp"); then
+# Start dnsmasq if DHCP is enabled in config, or if DHCP relay is configured.
+if $(bashio::config.true "dhcp") || [ -n "$DHCP_RELAY_SERVER" ]; then
     logger "## Starting dnsmasq daemon" 1
     dnsmasq -C /dnsmasq.conf
 fi
