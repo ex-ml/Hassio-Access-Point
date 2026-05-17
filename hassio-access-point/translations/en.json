@@ -28,6 +28,14 @@
 			"name": "Network Interface",
 			"description": "The wireless network interface to use to host the network. On a Raspberry Pi, the builtin one will be wlan0 (default)."
 		},
+		"network_mode": {
+			"name": "Network Mode",
+			"description": "Use 'router' for NAT/routed mode (default) or 'bridge' to bridge AP clients to upstream network DHCP and traffic."
+		},
+		"bridge_interface": {
+			"name": "Bridge Interface Name",
+			"description": "Bridge name to create in bridge mode when upstream_interface is not already a Linux bridge."
+		},
 		"upstream_interface": {
 			"name": "Upstream Interface",
 			"description": "Optional interface to use for client internet access and NAT. Leave empty to auto-detect from the default route."

@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.5.7] - 2026-05-17
+
+### Added
+- Optional `network_mode` with `bridge` mode to let upstream network provide DHCP and traffic handling for AP clients.
+- Optional `bridge_interface` to control bridge name when creating a Linux bridge in bridge mode.
+
+### Changed
+- In bridge mode, skip local dnsmasq and NAT/forwarding setup.
+
 ## [0.5.6] - 2026-05-17
 
 ### Added

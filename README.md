@@ -24,6 +24,8 @@ Please add
 - **netmask** (**required**): Subnet mask of the network
 - **broadcast** (**required**): Broadcast address of the network
 - **interface** (_optional_): Which wlan card to use. Default: wlan0
+- **network_mode** (_optional_): `router` (default) or `bridge`. Bridge mode lets upstream network handle DHCP/traffic.
+- **bridge_interface** (_optional_): Bridge device name to create when `network_mode: bridge` and upstream interface is not already a bridge. Default: `br-ap`
 - **upstream_interface** (_optional_): Interface used for client internet routing/NAT. If empty, the add-on auto-detects the default route interface.
 - **hide_ssid** (_optional_): Whether SSID is visible or hidden. 0 = visible, 1 = hidden. Defaults to visible
 - **dhcp** (_optional_): Enable or disable DHCP server. 0 = disable, 1 = enable. Defaults to disabled
@@ -51,6 +53,8 @@ Note: use either allow or deny lists for MAC filtering. If using allow, deny wil
     "netmask": "255.255.255.0",
     "broadcast": "192.168.10.255",
     "interface": "wlan0",
+    "network_mode": "router",
+    "bridge_interface": "br-ap",
     "upstream_interface": "",
     "hide_ssid": "1",
     "dhcp": "1",

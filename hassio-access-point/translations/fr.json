@@ -28,6 +28,14 @@
 			"name": "Interface réseau",
 			"description": "L'interface réseau sans-fil à utiliser pour héberger ce réseau. Sur un Raspberry Pi, celle intégrée est wlan0 (défaut)."
 		},
+		"network_mode": {
+			"name": "Mode réseau",
+			"description": "Utilisez 'router' pour le mode NAT/routé (défaut) ou 'bridge' pour confier DHCP et trafic au réseau amont."
+		},
+		"bridge_interface": {
+			"name": "Nom de l'interface bridge",
+			"description": "Nom du bridge à créer en mode bridge si upstream_interface n'est pas déjà un bridge Linux."
+		},
 		"upstream_interface": {
 			"name": "Interface amont",
 			"description": "Interface optionnelle à utiliser pour l'accès Internet des clients et le NAT. Laisser vide pour détecter automatiquement la route par défaut."
