@@ -211,6 +211,20 @@ if [ "$TRANSPARENT_UPLINK" = true ]; then
     ip link set "$ROUTE_INTERFACE" up
     logger "Run command: ip link set $BRIDGE_DEVICE up" 1
     ip link set "$BRIDGE_DEVICE" up
+    
+    # Set IP address on bridge BEFORE setting default route
+    logger "Run command: ifconfig $BRIDGE_DEVICE $ADDRESS netmask $NETMASK broadcast $BROADCAST" 1
+    ifconfig $BRIDGE_DEVICE $ADDRESS netmask $NETMASK broadcast $BROADCAST
+    
+    # Re-attempt default route now that bridge has an IP address
+    if [ -n "$DEFAULT_GATEWAY" ]; then
+        logger "Run command: ip route replace default via $DEFAULT_GATEWAY dev $BRIDGE_DEVICE (retry with IP configured)" 1
+        if ! ip route replace default via "$DEFAULT_GATEWAY" dev "$BRIDGE_DEVICE" 2>/dev/null; then
+            bashio::log.warning "Still cannot set default route via $DEFAULT_GATEWAY on $BRIDGE_DEVICE. Gateway may not be on this network."
+        else
+            logger "Successfully set default route via $DEFAULT_GATEWAY on $BRIDGE_DEVICE" 1
+        fi
+    fi
 
     # In bridge mode, interface configuration is on the bridge, not the wireless interface
     # Hostapd will bring up the wireless interface and add it to the bridge automatically
@@ -290,7 +304,8 @@ fi
 
 # Set address for the selected interface or bridge.
 if [ "$TRANSPARENT_UPLINK" = true ]; then
-    ifconfig $BRIDGE_DEVICE $ADDRESS netmask $NETMASK broadcast $BROADCAST
+    # IP address already set earlier in transparent mode to enable gateway routing
+    logger "Bridge IP address already configured: $ADDRESS" 1
 else
     ifconfig $INTERFACE $ADDRESS netmask $NETMASK broadcast $BROADCAST
 fi
@@ -364,6 +379,30 @@ elif [ -n "$DHCP_RELAY_SERVER" ]; then
     echo "bind-interfaces"$'\n' >> /dnsmasq.conf
     logger "Add to dnsmasq.conf: dhcp-relay=$ADDRESS,$DHCP_RELAY_SERVER,$INTERFACE" 1
     echo "dhcp-relay=$ADDRESS,$DHCP_RELAY_SERVER,$INTERFACE"$'\n' >> /dnsmasq.conf
+
+    if [ ${#DNSMASQ_CONFIG_OVERRIDE} -ge 1 ]; then
+        logger "# Custom dnsmasq config options:" 0
+        DNSMASQ_OVERRIDES=($DNSMASQ_CONFIG_OVERRIDE)
+        for override in "${DNSMASQ_OVERRIDES[@]}"; do
+            echo "$override"$'\n' >> /dnsmasq.conf
+            logger "Add to dnsmasq.conf: $override" 0
+        done
+    fi
+elif [ "$TRANSPARENT_UPLINK" = true ]; then
+    # In transparent bridge mode, relay DHCP requests to the upstream gateway
+    logger "# Transparent mode: Setting up DHCP relay to upstream gateway" 1
+    logger "Add to dnsmasq.conf: interface=$INTERFACE" 1
+    echo "interface=$INTERFACE"$'\n' >> /dnsmasq.conf
+    logger "Add to dnsmasq.conf: bind-interfaces" 1
+    echo "bind-interfaces"$'\n' >> /dnsmasq.conf
+    
+    if [ -n "$DEFAULT_GATEWAY" ]; then
+        logger "Add to dnsmasq.conf: dhcp-relay=$ADDRESS,$DEFAULT_GATEWAY,$INTERFACE" 1
+        echo "dhcp-relay=$ADDRESS,$DEFAULT_GATEWAY,$INTERFACE"$'\n' >> /dnsmasq.conf
+        logger "DHCP requests will be relayed to upstream gateway: $DEFAULT_GATEWAY" 1
+    else
+        bashio::log.warning "No gateway found for DHCP relay in transparent mode. Clients may not get IP addresses."
+    fi
 
     if [ ${#DNSMASQ_CONFIG_OVERRIDE} -ge 1 ]; then
         logger "# Custom dnsmasq config options:" 0
