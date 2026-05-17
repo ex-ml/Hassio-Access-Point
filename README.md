@@ -24,14 +24,13 @@ Please add
 - **netmask** (**required**): Subnet mask of the network
 - **broadcast** (**required**): Broadcast address of the network
 - **interface** (_optional_): Which wlan card to use. Default: wlan0
-- **network_mode** (_optional_): `offline` (default) or `online`. `offline` creates the AP's own subnet with local DHCP/NAT. `online` creates a transparent AP that joins the host WLAN to the upstream LAN and lets the upstream router hand out DHCP, DNS and gateway settings. Legacy values `router`, `access_point` and `bridge` are accepted for compatibility.
-- **bridge_interface** (_optional_): Advanced uplink device name used internally when `network_mode: online`. Leave alone unless you know why you need it.
+- **bridge_interface** (_optional_): Advanced uplink device name used when transparent LAN uplink is active. Leave alone unless you know why you need it.
 - **upstream_interface** (_optional_): Advanced manual override for the uplink interface. If empty, the add-on resolves the uplink from the host routing table.
 - **hide_ssid** (_optional_): Whether SSID is visible or hidden. 0 = visible, 1 = hidden. Defaults to visible
 - **dhcp** (_optional_): Enable or disable DHCP server. 0 = disable, 1 = enable. Defaults to disabled
 - **dhcp_start_addr** (_optional_): Start address for DHCP range. Required if DHCP enabled
 - **dhcp_end_addr** (_optional_): End address for DHCP range. Required if DHCP enabled
-- **dhcp_relay_server** (_optional_): Upstream DHCP server IP. Used only in `offline` mode when you want DHCP relay instead of a local server.
+- **dhcp_relay_server** (_optional_): Upstream DHCP server IP. Used only when local DHCP is disabled and you want relay mode.
 - **allow_mac_addresses** (_optional_): List of MAC addresses to allow. Note: if using allow, blocks everything not in list
 - **deny_mac_addresses** (_optional_): List of MAC addresses to block. Note: if using deny, allows everything not in list
 - **debug** (_optional_): Set logging level. 0 = basic output, 1 = show addon detail, 2 = same as 1 plus run hostapd in debug mode
@@ -45,10 +44,9 @@ Note: use either allow or deny lists for MAC filtering. If using allow, deny wil
 
 ### Device behavior
 
-- `offline`: AP-only mode on its own subnet. Local DHCP can be enabled, NAT can be enabled, and no upstream LAN is required.
-- `online`: Transparent AP mode. WLAN clients join the upstream LAN and inherit DHCP, DNS and gateway from the upstream router.
-
-Legacy names `router`, `access_point` and `bridge` map to these two modes so older configs keep working.
+- If `dhcp: true`, the add-on runs a local DHCP server on the AP subnet.
+- If `dhcp: false` and `dhcp_relay_server` is set, the add-on relays DHCP to that upstream server.
+- If `dhcp: false` and `dhcp_relay_server` is empty, the add-on uses transparent LAN uplink behavior (upstream network handles DHCP/DNS/gateway directly).
 
 ### Example configuration
 
@@ -60,7 +58,6 @@ Legacy names `router`, `access_point` and `bridge` map to these two modes so old
     "netmask": "255.255.255.0",
     "broadcast": "192.168.10.255",
     "interface": "wlan0",
-    "network_mode": "offline",
     "bridge_interface": "br-ap",
     "upstream_interface": "",
     "hide_ssid": "1",
@@ -86,7 +83,8 @@ Legacy names `router`, `access_point` and `bridge` map to these two modes so old
     "netmask": "255.255.255.0",
     "broadcast": "192.168.20.255",
     "interface": "wlan0",
-    "network_mode": "online",
+    "dhcp": false,
+    "dhcp_relay_server": "",
     "client_internet_access": false
 ```
 

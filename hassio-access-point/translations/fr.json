@@ -28,10 +28,6 @@
 			"name": "Sans fil : interface",
 			"description": "L'interface réseau sans-fil à utiliser pour héberger ce réseau. Sur un Raspberry Pi, celle intégrée est wlan0 (défaut)."
 		},
-		"network_mode": {
-			"name": "Comportement de l'appareil",
-			"description": "Utilisez 'offline' pour un sous-réseau AP local avec DHCP/NAT, ou 'online' pour un point d'accès transparent qui rejoint le LAN amont. Les valeurs historiques 'router', 'access_point' et 'bridge' sont acceptées pour compatibilité."
-		},
 		"bridge_interface": {
 			"name": "Avancé : nom du dispositif amont",
 			"description": "Nom interne avancé utilisé lorsque le point d'accès est placé en ligne. Ne pas modifier sauf si nécessaire."
@@ -46,7 +42,7 @@
 		},
 		"dhcp": {
 			"name": "DHCP : activer le serveur local",
-			"description": "Activer le serveur DHCP local DNSMASQ sur le sous-réseau du point d'accès. En mode online, il est ignoré car le LAN amont fournit le DHCP."
+			"description": "Activer le serveur DHCP local DNSMASQ sur le sous-réseau du point d'accès. S'il est désactivé et qu'aucun relais n'est défini, le DHCP LAN amont est utilisé directement."
 		},
 		"dhcp_start_addr": {
 			"name": "DHCP : début de plage",
@@ -58,7 +54,7 @@
 		},
 		"dhcp_relay_server": {
 			"name": "DHCP : routeur / serveur amont",
-			"description": "Adresse IP optionnelle du serveur DHCP amont pour les configurations relais hors ligne. En mode online, le LAN amont fournit directement le DHCP."
+			"description": "Adresse IP optionnelle du serveur DHCP amont pour les configurations en relais quand le DHCP local est désactivé. Laissez vide pour utiliser directement le DHCP du LAN amont."
 		},
 		"allow_mac_addresses": {
 			"name": "Liste blanche d'adresses MAC",
@@ -82,7 +78,7 @@
 		},
 		"client_internet_access": {
 			"name": "Routage : autoriser l'accès Internet des clients",
-			"description": "Autorise le trafic des clients vers l'interface amont détectée. Le mode offline ajoute du NAT ; le mode online est géré par le LAN amont."
+			"description": "Autorise le trafic des clients vers l'interface amont détectée en mode routé. En mode LAN transparent, ce réglage n'est pas utilisé."
 		},
 		"client_dns_override": {
 			"name": "DHCP : surcharge DNS client",

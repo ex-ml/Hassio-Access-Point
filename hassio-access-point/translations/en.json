@@ -28,10 +28,6 @@
 			"name": "Wireless: Interface",
 			"description": "The wireless network interface to use to host the network. On a Raspberry Pi, the builtin one will be wlan0 (default)."
 		},
-		"network_mode": {
-			"name": "Device Behavior",
-			"description": "Use 'offline' for a local AP subnet with DHCP/NAT, or 'online' for a transparent AP that joins the upstream LAN. Legacy values 'router', 'access_point' and 'bridge' are accepted for compatibility."
-		},
 		"bridge_interface": {
 			"name": "Advanced: Uplink Device Name",
 			"description": "Advanced internal device name used when the AP is placed online. Leave untouched unless you know why it matters."
@@ -46,7 +42,7 @@
 		},
 		"dhcp": {
 			"name": "DHCP: Enable Local Server",
-			"description": "Enable the local DNSMASQ DHCP server on the AP subnet. In online mode this is ignored because the upstream router provides DHCP."
+			"description": "Enable the local DNSMASQ DHCP server on the AP subnet. If disabled and no relay server is set, upstream LAN DHCP is used directly."
 		},
 		"dhcp_start_addr": {
 			"name": "DHCP: Range Start",
@@ -58,7 +54,7 @@
 		},
 		"dhcp_relay_server": {
 			"name": "DHCP: Upstream Router / Server",
-			"description": "Optional upstream DHCP server IP for offline relay setups. In online mode the upstream LAN handles DHCP directly."
+			"description": "Optional upstream DHCP server IP for relay setups when local DHCP is disabled. Leave empty to use direct upstream LAN DHCP."
 		},
 		"allow_mac_addresses": {
 			"name": "MAC Address Allowlist",
@@ -82,7 +78,7 @@
 		},
 		"client_internet_access": {
 			"name": "Routing: Enable Client Internet Access",
-			"description": "Allow traffic from AP clients to leave through the detected uplink. Offline mode adds NAT; online mode is handled by the upstream LAN."
+			"description": "Allow traffic from AP clients to leave through the detected uplink in routed mode. In transparent LAN mode this setting is not used."
 		},
 		"client_dns_override": {
 			"name": "DHCP: Client DNS Override",

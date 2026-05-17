@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.5.10] - 2026-05-17
+
+### Fixed
+- Removed the `network_mode` selector as a runtime dependency.
+- Runtime behavior is now derived from DHCP settings only:
+    - local DHCP (`dhcp: true`)
+    - DHCP relay (`dhcp: false` + `dhcp_relay_server`)
+    - transparent LAN uplink (`dhcp: false` + empty relay server)
+- Fixed startup crash caused by leftover `DEVICE_BEHAVIOR` variable reference.
+
+### Changed
+- Updated docs and translation strings to describe DHCP-driven behavior instead of mode selection.
+
 ## [0.5.9] - 2026-05-17
 
 ### Fixed
