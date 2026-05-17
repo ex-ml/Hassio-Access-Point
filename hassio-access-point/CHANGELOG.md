@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.5.8] - 2026-05-17
+
+### Fixed
+- Removed the unsafe host bridge reconfiguration introduced by the previous `bridge` mode.
+- `network_mode: bridge` now falls back to a safe `access_point` behavior for compatibility.
+- Resolve the upstream interface from the route to the relay target or default gateway instead of requiring a manual interface override.
+- Fixed legacy boolean option migration in `run.sh`.
+
+### Changed
+- `access_point` mode now keeps the original routed AP design and uses DHCP relay for upstream-managed DHCP/DNS/gateway instead of attempting a Linux bridge on the host.
+
 ## [0.5.7] - 2026-05-17
 
 ### Added

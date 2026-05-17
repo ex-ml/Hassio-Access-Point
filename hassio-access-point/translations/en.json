@@ -1,64 +1,64 @@
 {
 	"configuration": {
 		"ssid": {
-			"name": "SSID",
+			"name": "Wireless: SSID",
 			"description": "The name of the WiFi network you want to host."
 		},
 		"wpa_passphrase": {
-			"name": "WPA2 Password",
+			"name": "Wireless: WPA2 Password",
 			"description": "The password for the WiFi network. Must be at least 8 characters long."
 		},
 		"channel": {
-			"name": "2.4GHz Channel Number",
+			"name": "Wireless: 2.4GHz Channel",
 			"description": "The channel to broadcast on. If unsure; either 1, 6 or 11 is recommended."
 		},
 		"address": {
-			"name": "Host IP Address",
-			"description": "This will be the IP address of the Homeassistant device on the new subnet, acting as the router and (optionally) DHCP/DNS server."
+			"name": "LAN: AP Address",
+			"description": "IP address of the Home Assistant host on the AP subnet. In router mode this device is the gateway; in access point mode it is the relay/router towards upstream."
 		},
 		"netmask": {
-			"name": "Subnet Netmask",
+			"name": "LAN: Netmask",
 			"description": "The netmask of the hosted subnet. Leave default if uncertain."
 		},
 		"broadcast": {
-			"name": "Subnet Broadcast Address",
+			"name": "LAN: Broadcast Address",
 			"description": "The broadcast address of the network. This must always be the last address in the subnet. Leave default if unsure."
 		},
 		"interface": {
-			"name": "Network Interface",
+			"name": "Wireless: Interface",
 			"description": "The wireless network interface to use to host the network. On a Raspberry Pi, the builtin one will be wlan0 (default)."
 		},
 		"network_mode": {
-			"name": "Network Mode",
-			"description": "Use 'router' for NAT/routed mode (default) or 'bridge' to bridge AP clients to upstream network DHCP and traffic."
+			"name": "Device Behavior",
+			"description": "Use 'router' for the original NAT/routed mode, or 'access_point' for upstream-managed DHCP via relay. The legacy value 'bridge' is accepted as an alias for 'access_point'."
 		},
 		"bridge_interface": {
-			"name": "Bridge Interface Name",
-			"description": "Bridge name to create in bridge mode when upstream_interface is not already a Linux bridge."
+			"name": "Advanced: Legacy Bridge Name",
+			"description": "Deprecated and ignored. Transparent host bridge mode has been removed because it broke host networking."
 		},
 		"upstream_interface": {
-			"name": "Upstream Interface",
-			"description": "Optional interface to use for client internet access and NAT. Leave empty to auto-detect from the default route."
+			"name": "Advanced: Uplink Interface Override",
+			"description": "Optional manual override for the uplink interface. Leave empty to detect it automatically from the route to the upstream DHCP server or default gateway."
 		},
 		"hide_ssid": {
 			"name": "Hide Network SSID",
 			"description": "Whether to hide the network SSID. Use with caution."
 		},
 		"dhcp": {
-			"name": "Enable DHCP Server",
-			"description": "Whether to enable a DNSMASQ DHCP server on the subnet."
+			"name": "DHCP: Enable Local Server",
+			"description": "Enable the local DNSMASQ DHCP server on the AP subnet. Disable this for upstream-managed access point mode."
 		},
 		"dhcp_start_addr": {
-			"name": "DHCP IP Range Start",
+			"name": "DHCP: Range Start",
 			"description": "The start of the IP address range to automatically assign to devices."
 		},
 		"dhcp_end_addr": {
-			"name": "DHCP IP Range End",
+			"name": "DHCP: Range End",
 			"description": "The end of the IP address range to automatically assign to devices."
 		},
 		"dhcp_relay_server": {
-			"name": "DHCP Relay Server",
-			"description": "Optional upstream DHCP server IP for relay mode. Only used when local DHCP is disabled."
+			"name": "DHCP: Upstream Router / Server",
+			"description": "Optional upstream DHCP server IP for relay mode. Leave empty in access point mode to use the host's default gateway automatically."
 		},
 		"allow_mac_addresses": {
 			"name": "MAC Address Allowlist",
@@ -81,15 +81,15 @@
 			"description": "A list of options to append to the `hostapd.conf` file. Don't touch if you don't know what you're doing."
 		},
 		"client_internet_access": {
-			"name": "Enable Internet Access",
-			"description": "Whether to allow internet access for clients"
+			"name": "Routing: Enable Client Internet Access",
+			"description": "Allow traffic from AP clients to leave through the detected uplink. Router mode adds NAT; access point mode only forwards."
 		},
 		"client_dns_override": {
-			"name": "Client DNS ",
+			"name": "DHCP: Client DNS Override",
 			"description": "A list of DNS server IPs to use. If empty, will use Homeassistant's default DNS servers."
 		},
 		"dnsmasq_config_override": {
-			"name": "DNSMASQ Custom Configuration",
+			"name": "Advanced: DNSMASQ Custom Configuration",
 			"description": "A list of options to append to the `dnsmasq.conf` file. Don't touch if you don't know what you're doing."
 		}
 	}

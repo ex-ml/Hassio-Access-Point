@@ -24,14 +24,14 @@ Please add
 - **netmask** (**required**): Subnet mask of the network
 - **broadcast** (**required**): Broadcast address of the network
 - **interface** (_optional_): Which wlan card to use. Default: wlan0
-- **network_mode** (_optional_): `router` (default) or `bridge`. Bridge mode lets upstream network handle DHCP/traffic.
-- **bridge_interface** (_optional_): Bridge device name to create when `network_mode: bridge` and upstream interface is not already a bridge. Default: `br-ap`
-- **upstream_interface** (_optional_): Interface used for client internet routing/NAT. If empty, the add-on auto-detects the default route interface.
+- **network_mode** (_optional_): `router` (default) or `access_point`. `access_point` keeps the AP on its own subnet but lets an upstream DHCP server manage leases, DNS and gateway information through DHCP relay. The legacy value `bridge` is treated as `access_point` for compatibility.
+- **bridge_interface** (_optional_): Legacy option from the removed host bridge experiment. It is ignored.
+- **upstream_interface** (_optional_): Advanced manual override for the uplink interface. If empty, the add-on resolves the uplink from the route to the upstream DHCP server or the default gateway.
 - **hide_ssid** (_optional_): Whether SSID is visible or hidden. 0 = visible, 1 = hidden. Defaults to visible
 - **dhcp** (_optional_): Enable or disable DHCP server. 0 = disable, 1 = enable. Defaults to disabled
 - **dhcp_start_addr** (_optional_): Start address for DHCP range. Required if DHCP enabled
 - **dhcp_end_addr** (_optional_): End address for DHCP range. Required if DHCP enabled
-- **dhcp_relay_server** (_optional_): Upstream DHCP server IP (e.g. FritzBox) for relay mode. Used only when `dhcp` is disabled.
+- **dhcp_relay_server** (_optional_): Upstream DHCP server IP (for example your router) for relay mode. Used only when `dhcp` is disabled. In `access_point` mode this defaults to the host's default gateway when left empty.
 - **allow_mac_addresses** (_optional_): List of MAC addresses to allow. Note: if using allow, blocks everything not in list
 - **deny_mac_addresses** (_optional_): List of MAC addresses to block. Note: if using deny, allows everything not in list
 - **debug** (_optional_): Set logging level. 0 = basic output, 1 = show addon detail, 2 = same as 1 plus run hostapd in debug mode
@@ -42,6 +42,13 @@ Please add
 - **dnsmasq_config_override** (_optional_): List of dnsmasq config options to add to dnsmasq.conf (can be used to override existing options, as well as reserving IPs, e.g. `dhcp-host=12:34:56:78:90:AB,192.168.99.123`)
 
 Note: use either allow or deny lists for MAC filtering. If using allow, deny will be ignored.
+
+### Device behavior
+
+- `router`: Original add-on behavior. The Home Assistant host acts as the AP gateway. DHCP can be local, and NAT/internet access can be enabled for clients.
+- `access_point`: Safe upstream-managed mode. The add-on keeps the AP interface on its own subnet, relays DHCP to the upstream router, and routes traffic without rewriting the host uplink into a Linux bridge.
+
+`access_point` is intentionally not a transparent layer-2 bridge. If the upstream router should hand out leases for the AP subnet, it must know a return route for that AP subnet via the Home Assistant host.
 
 ### Example configuration
 
@@ -67,6 +74,22 @@ Note: use either allow or deny lists for MAC filtering. If using allow, deny wil
     "hostapd_config_override": [],
     "client_internet_access": '1',
     "client_dns_override": ['1.1.1.1', '8.8.8.8']
+```
+
+### Example: upstream-managed AP
+
+```
+    "ssid": "AP-NAME",
+    "wpa_passphrase": "AP-PASSWORD",
+    "channel": "6",
+    "address": "192.168.20.1",
+    "netmask": "255.255.255.0",
+    "broadcast": "192.168.20.255",
+    "interface": "wlan0",
+    "network_mode": "access_point",
+    "dhcp": false,
+    "dhcp_relay_server": "192.168.178.1",
+    "client_internet_access": true
 ```
 
 ### Device & OS compatibility

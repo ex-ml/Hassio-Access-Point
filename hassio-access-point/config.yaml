@@ -1,6 +1,6 @@
 ---
 name: Hass.io Access Point
-version: 0.5.7
+version: 0.5.8
 slug: hassio-access-point
 description: Create a WiFi access point to directly connect devices to Home Assistant
 arch: [armhf, armv7, aarch64, amd64, i386]
@@ -44,7 +44,7 @@ schema:
   netmask: match(^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$)
   broadcast: match(^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$)
   interface: str
-  network_mode: list(router|bridge)?
+  network_mode: list(router|access_point|bridge)?
   bridge_interface: str?
   upstream_interface: str?
   hide_ssid: bool

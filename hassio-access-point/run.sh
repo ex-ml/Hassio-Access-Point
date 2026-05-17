@@ -23,12 +23,13 @@ CONFIG_PATH=/data/options.json
 # Convert integer configs to boolean, to avoid a breaking old configs
 declare -r bool_configs=( hide_ssid client_internet_access dhcp )
 for i in $bool_configs ; do
+    config_value=$(bashio::config "$i")
     if bashio::config.true $i || bashio::config.false $i ; then
         continue
     elif [ $config_value -eq 0 ] ; then
-        bashio::addon.option $config_value false
+        bashio::addon.option "$i" false
     else
-        bashio::addon.option $config_value true
+        bashio::addon.option "$i" true
     fi
 done
 
@@ -48,15 +49,7 @@ DHCP_START_ADDR=$(bashio::config "dhcp_start_addr" )
 DHCP_END_ADDR=$(bashio::config "dhcp_end_addr" )
 DHCP_RELAY_SERVER=$(bashio::config "dhcp_relay_server" "")
 DNSMASQ_CONFIG_OVERRIDE=$(bashio::config 'dnsmasq_config_override' )
-BRIDGE_DEVICE=""
 
-if [ "$NETWORK_MODE" != "router" ] && [ "$NETWORK_MODE" != "bridge" ]; then
-    bashio::exit.nok "Invalid network_mode '$NETWORK_MODE'. Use 'router' or 'bridge'."
-fi
-
-if [ "$NETWORK_MODE" = "bridge" ] && [ -z "$UPSTREAM_INTERFACE" ]; then
-    bashio::exit.nok "Bridge mode requires upstream_interface to be set."
-fi
 ALLOW_MAC_ADDRESSES=$(bashio::config 'allow_mac_addresses' )
 DENY_MAC_ADDRESSES=$(bashio::config 'deny_mac_addresses' )
 DEBUG=$(bashio::config 'debug' )
@@ -66,18 +59,57 @@ CLIENT_INTERNET_ACCESS=$(bashio::config.false 'client_internet_access'; echo $?)
 CLIENT_DNS_OVERRIDE=$(bashio::config 'client_dns_override' )
 DNSMASQ_CONFIG_OVERRIDE=$(bashio::config 'dnsmasq_config_override' )
 
+DEVICE_BEHAVIOR="$NETWORK_MODE"
+if [ "$DEVICE_BEHAVIOR" = "bridge" ]; then
+    DEVICE_BEHAVIOR="access_point"
+    logger "network_mode=bridge is deprecated. Using access_point behavior without host bridge reconfiguration." 0
+fi
+
+if [ "$DEVICE_BEHAVIOR" != "router" ] && [ "$DEVICE_BEHAVIOR" != "access_point" ]; then
+    bashio::exit.nok "Invalid network_mode '$NETWORK_MODE'. Use 'router' or 'access_point'."
+fi
+
+if [ "$DEVICE_BEHAVIOR" = "access_point" ] && $(bashio::config.true "dhcp"); then
+    bashio::exit.nok "Access point mode expects upstream DHCP. Disable local dhcp and optionally set dhcp_relay_server."
+fi
+
 if $(bashio::config.true "dhcp") && [ -n "$DHCP_RELAY_SERVER" ]; then
     logger "Both dhcp and dhcp_relay_server are set. Using local DHCP server mode and ignoring relay." 0
 fi
 
-# Get the Default Route interface
-DEFAULT_ROUTE_INTERFACE=$(ip route show default | awk '/^default/ { print $5 }')
+route_interface_for_target() {
+    target=$1
+
+    if [ -z "$target" ]; then
+        return 1
+    fi
+
+    ip route get "$target" 2>/dev/null | awk '{for (i = 1; i <= NF; i++) if ($i == "dev") { print $(i + 1); exit }}'
+}
+
+DEFAULT_GATEWAY=$(ip route show default | awk '/^default/ { print $3; exit }')
+DEFAULT_ROUTE_INTERFACE=$(ip route show default | awk '/^default/ { print $5; exit }')
+ROUTE_TARGET="$DEFAULT_GATEWAY"
+
+if [ -n "$DHCP_RELAY_SERVER" ]; then
+    ROUTE_TARGET="$DHCP_RELAY_SERVER"
+fi
 
 # Allow explicit upstream interface override from configuration.
 if [ -n "$UPSTREAM_INTERFACE" ]; then
     ROUTE_INTERFACE="$UPSTREAM_INTERFACE"
+elif [ -n "$ROUTE_TARGET" ]; then
+    ROUTE_INTERFACE=$(route_interface_for_target "$ROUTE_TARGET")
 else
     ROUTE_INTERFACE="$DEFAULT_ROUTE_INTERFACE"
+fi
+
+if [ -z "$ROUTE_INTERFACE" ]; then
+    ROUTE_INTERFACE="$DEFAULT_ROUTE_INTERFACE"
+fi
+
+if [ -z "$ROUTE_INTERFACE" ]; then
+    bashio::exit.nok "Unable to determine upstream interface from host routing table."
 fi
 
 # iptables interface matching does not accept '.' in interface names (e.g. vlan subinterfaces like eth0.20).
@@ -88,11 +120,21 @@ if [[ "$IPTABLES_ROUTE_INTERFACE" == *.* ]]; then
 fi
 
 logger "Detected default route interface: $DEFAULT_ROUTE_INTERFACE" 1
+logger "Detected default gateway: $DEFAULT_GATEWAY" 1
 if [ -n "$UPSTREAM_INTERFACE" ]; then
     logger "Using configured upstream interface override: $UPSTREAM_INTERFACE" 1
+elif [ -n "$ROUTE_TARGET" ]; then
+    logger "Resolved upstream interface via route target $ROUTE_TARGET: $ROUTE_INTERFACE" 1
 fi
 if [ "$ROUTE_INTERFACE" != "$IPTABLES_ROUTE_INTERFACE" ]; then
     logger "Using iptables-safe upstream matcher: $IPTABLES_ROUTE_INTERFACE" 1
+fi
+if [ "$DEVICE_BEHAVIOR" = "access_point" ] && [ -z "$DHCP_RELAY_SERVER" ] && [ -n "$DEFAULT_GATEWAY" ]; then
+    DHCP_RELAY_SERVER="$DEFAULT_GATEWAY"
+    logger "Access point mode auto-selected upstream DHCP server: $DHCP_RELAY_SERVER" 0
+fi
+if [ -n "$BRIDGE_INTERFACE" ]; then
+    logger "bridge_interface is ignored. Transparent host bridge mode has been removed." 1
 fi
 
 echo "Starting Hass.io Access Point Addon"
@@ -109,32 +151,12 @@ nmcli dev set $INTERFACE managed no
 logger "Run command: ip link set $INTERFACE down" 1
 ip link set $INTERFACE down
 
-if [ "$NETWORK_MODE" = "router" ]; then
-    logger "Add to /etc/network/interfaces: address $ADDRESS" 1
-    echo "address $ADDRESS"$'\n' >> /etc/network/interfaces
-    logger "Add to /etc/network/interfaces: netmask $NETMASK" 1
-    echo "netmask $NETMASK"$'\n' >> /etc/network/interfaces
-    logger "Add to /etc/network/interfaces: broadcast $BROADCAST" 1
-    echo "broadcast $BROADCAST"$'\n' >> /etc/network/interfaces
-else
-    logger "Bridge mode selected. Skipping static IP assignment on $INTERFACE." 1
-
-    if [ -d "/sys/class/net/$UPSTREAM_INTERFACE/bridge" ]; then
-        BRIDGE_DEVICE="$UPSTREAM_INTERFACE"
-        logger "Using existing bridge interface: $BRIDGE_DEVICE" 1
-    else
-        BRIDGE_DEVICE="$BRIDGE_INTERFACE"
-        logger "Creating bridge interface: $BRIDGE_DEVICE" 1
-        ip link show "$BRIDGE_DEVICE" >/dev/null 2>&1 || ip link add name "$BRIDGE_DEVICE" type bridge
-        logger "Run command: ip link set $UPSTREAM_INTERFACE master $BRIDGE_DEVICE" 1
-        ip link set "$UPSTREAM_INTERFACE" master "$BRIDGE_DEVICE"
-        logger "Run command: ip link set $UPSTREAM_INTERFACE up" 1
-        ip link set "$UPSTREAM_INTERFACE" up
-    fi
-
-    logger "Run command: ip link set $BRIDGE_DEVICE up" 1
-    ip link set "$BRIDGE_DEVICE" up
-fi
+logger "Add to /etc/network/interfaces: address $ADDRESS" 1
+echo "address $ADDRESS"$'\n' >> /etc/network/interfaces
+logger "Add to /etc/network/interfaces: netmask $NETMASK" 1
+echo "netmask $NETMASK"$'\n' >> /etc/network/interfaces
+logger "Add to /etc/network/interfaces: broadcast $BROADCAST" 1
+echo "broadcast $BROADCAST"$'\n' >> /etc/network/interfaces
 
 logger "Run command: ip link set $INTERFACE up" 1
 ip link set $INTERFACE up
@@ -200,18 +222,11 @@ fi
 
 
 # Set address for the selected interface. Not sure why this is now not being set via /etc/network/interfaces, but maybe interfaces file is no longer required...
-if [ "$NETWORK_MODE" = "router" ]; then
-    ifconfig $INTERFACE $ADDRESS netmask $NETMASK broadcast $BROADCAST
-fi
+ifconfig $INTERFACE $ADDRESS netmask $NETMASK broadcast $BROADCAST
 
 # Add interface to hostapd.conf
 logger "Add to hostapd.conf: interface=$INTERFACE" 1
 echo "interface=$INTERFACE"$'\n' >> /hostapd.conf
-
-if [ "$NETWORK_MODE" = "bridge" ]; then
-    logger "Add to hostapd.conf: bridge=$BRIDGE_DEVICE" 1
-    echo "bridge=$BRIDGE_DEVICE"$'\n' >> /hostapd.conf
-fi
 
 # Append override options to hostapd.conf
 if [ ${#HOSTAPD_CONFIG_OVERRIDE} -ge 1 ]; then
@@ -223,73 +238,68 @@ if [ ${#HOSTAPD_CONFIG_OVERRIDE} -ge 1 ]; then
     done
 fi
 
-if [ "$NETWORK_MODE" = "bridge" ]; then
-    logger "# Bridge mode selected. Skipping dnsmasq (upstream DHCP handles clients)." 1
-else
-    # Setup dnsmasq.conf if DHCP is enabled in config
-    if $(bashio::config.true "dhcp"); then
-        logger "# DHCP enabled. Setup dnsmasq:" 1
-        logger "Add to dnsmasq.conf: dhcp-range=$DHCP_START_ADDR,$DHCP_END_ADDR,12h" 1
-            echo "dhcp-range=$DHCP_START_ADDR,$DHCP_END_ADDR,12h"$'\n' >> /dnsmasq.conf
-            logger "Add to dnsmasq.conf: interface=$INTERFACE" 1
-            echo "interface=$INTERFACE"$'\n' >> /dnsmasq.conf
+# Setup dnsmasq.conf if DHCP is enabled in config
+if $(bashio::config.true "dhcp"); then
+    logger "# DHCP enabled. Setup dnsmasq:" 1
+    logger "Add to dnsmasq.conf: dhcp-range=$DHCP_START_ADDR,$DHCP_END_ADDR,12h" 1
+    echo "dhcp-range=$DHCP_START_ADDR,$DHCP_END_ADDR,12h"$'\n' >> /dnsmasq.conf
+    logger "Add to dnsmasq.conf: interface=$INTERFACE" 1
+    echo "interface=$INTERFACE"$'\n' >> /dnsmasq.conf
 
-        ## DNS
-        dns_array=()
-            if [ ${#CLIENT_DNS_OVERRIDE} -ge 1 ]; then
-                dns_string="dhcp-option=6"
-                DNS_OVERRIDES=($CLIENT_DNS_OVERRIDE)
-                for override in "${DNS_OVERRIDES[@]}"; do
-                    dns_string+=",$override"
-                done
-                echo "$dns_string"$'\n' >> /dnsmasq.conf
-                logger "Add custom DNS: $dns_string" 0
-            else
-                IFS=$'\n' read -r -d '' -a dns_array < <( nmcli device show | grep IP4.DNS | awk '{print $2}' && printf '\0' )
-
-                if [ ${#dns_array[@]} -eq 0 ]; then
-                    logger "Couldn't get DNS servers from host. Consider setting with 'client_dns_override' config option." 0
-                else
-                    dns_string="dhcp-option=6"
-                    for dns_entry in "${dns_array[@]}"; do
-                        dns_string+=",$dns_entry"
-                    done
-                    echo "$dns_string"$'\n' >> /dnsmasq.conf
-                    logger "Add DNS: $dns_string" 0
-                fi
-
-            fi
-
-        # Append override options to dnsmasq.conf
-        if [ ${#DNSMASQ_CONFIG_OVERRIDE} -ge 1 ]; then
-            logger "# Custom dnsmasq config options:" 0
-            DNSMASQ_OVERRIDES=($DNSMASQ_CONFIG_OVERRIDE)
-            for override in "${DNSMASQ_OVERRIDES[@]}"; do
-                echo "$override"$'\n' >> /dnsmasq.conf
-                logger "Add to dnsmasq.conf: $override" 0
-            done
-        fi
-    elif [ -n "$DHCP_RELAY_SERVER" ]; then
-        logger "# DHCP relay enabled. Setup dnsmasq relay:" 1
-        logger "Add to dnsmasq.conf: interface=$INTERFACE" 1
-        echo "interface=$INTERFACE"$'\n' >> /dnsmasq.conf
-        logger "Add to dnsmasq.conf: bind-interfaces" 1
-        echo "bind-interfaces"$'\n' >> /dnsmasq.conf
-        logger "Add to dnsmasq.conf: dhcp-relay=$ADDRESS,$DHCP_RELAY_SERVER,$INTERFACE" 1
-        echo "dhcp-relay=$ADDRESS,$DHCP_RELAY_SERVER,$INTERFACE"$'\n' >> /dnsmasq.conf
-
-        # Append override options to dnsmasq.conf
-        if [ ${#DNSMASQ_CONFIG_OVERRIDE} -ge 1 ]; then
-            logger "# Custom dnsmasq config options:" 0
-            DNSMASQ_OVERRIDES=($DNSMASQ_CONFIG_OVERRIDE)
-            for override in "${DNSMASQ_OVERRIDES[@]}"; do
-                echo "$override"$'\n' >> /dnsmasq.conf
-                logger "Add to dnsmasq.conf: $override" 0
-            done
-        fi
+    ## DNS
+    dns_array=()
+    if [ ${#CLIENT_DNS_OVERRIDE} -ge 1 ]; then
+        dns_string="dhcp-option=6"
+        DNS_OVERRIDES=($CLIENT_DNS_OVERRIDE)
+        for override in "${DNS_OVERRIDES[@]}"; do
+            dns_string+=",$override"
+        done
+        echo "$dns_string"$'\n' >> /dnsmasq.conf
+        logger "Add custom DNS: $dns_string" 0
     else
-	    logger "# DHCP not enabled. Skipping dnsmasq" 1
+        IFS=$'\n' read -r -d '' -a dns_array < <( nmcli device show | grep IP4.DNS | awk '{print $2}' && printf '\0' )
+
+        if [ ${#dns_array[@]} -eq 0 ]; then
+            logger "Couldn't get DNS servers from host. Consider setting with 'client_dns_override' config option." 0
+        else
+            dns_string="dhcp-option=6"
+            for dns_entry in "${dns_array[@]}"; do
+                dns_string+=",$dns_entry"
+            done
+            echo "$dns_string"$'\n' >> /dnsmasq.conf
+            logger "Add DNS: $dns_string" 0
+        fi
     fi
+
+    # Append override options to dnsmasq.conf
+    if [ ${#DNSMASQ_CONFIG_OVERRIDE} -ge 1 ]; then
+        logger "# Custom dnsmasq config options:" 0
+        DNSMASQ_OVERRIDES=($DNSMASQ_CONFIG_OVERRIDE)
+        for override in "${DNSMASQ_OVERRIDES[@]}"; do
+            echo "$override"$'\n' >> /dnsmasq.conf
+            logger "Add to dnsmasq.conf: $override" 0
+        done
+    fi
+elif [ -n "$DHCP_RELAY_SERVER" ]; then
+    logger "# DHCP relay enabled. Setup dnsmasq relay:" 1
+    logger "Add to dnsmasq.conf: interface=$INTERFACE" 1
+    echo "interface=$INTERFACE"$'\n' >> /dnsmasq.conf
+    logger "Add to dnsmasq.conf: bind-interfaces" 1
+    echo "bind-interfaces"$'\n' >> /dnsmasq.conf
+    logger "Add to dnsmasq.conf: dhcp-relay=$ADDRESS,$DHCP_RELAY_SERVER,$INTERFACE" 1
+    echo "dhcp-relay=$ADDRESS,$DHCP_RELAY_SERVER,$INTERFACE"$'\n' >> /dnsmasq.conf
+
+    # Append override options to dnsmasq.conf
+    if [ ${#DNSMASQ_CONFIG_OVERRIDE} -ge 1 ]; then
+        logger "# Custom dnsmasq config options:" 0
+        DNSMASQ_OVERRIDES=($DNSMASQ_CONFIG_OVERRIDE)
+        for override in "${DNSMASQ_OVERRIDES[@]}"; do
+            echo "$override"$'\n' >> /dnsmasq.conf
+            logger "Add to dnsmasq.conf: $override" 0
+        done
+    fi
+else
+	logger "# DHCP not enabled. Skipping dnsmasq" 1
 fi
 
 is_masquerading_enabled() {
@@ -300,37 +310,36 @@ is_forwarding_enabled() {
     iptables-nft -C FORWARD -i "$INTERFACE" -o "$IPTABLES_ROUTE_INTERFACE" -j ACCEPT -m comment --comment "ap-addon-inet" 2>/dev/null
 }
 
-if [ "$NETWORK_MODE" = "bridge" ]; then
-    logger "# Bridge mode selected. Skipping NAT/forwarding rules." 1
-else
-    # Setup Client Internet Access
-    if $(bashio::config.true "client_internet_access"); then
+if $(bashio::config.true "client_internet_access"); then
+    if [ "$DEVICE_BEHAVIOR" = "router" ]; then
         ## Add masquerade if not already present
         if ! is_masquerading_enabled; then
             iptables-nft -t nat -A POSTROUTING -o "$IPTABLES_ROUTE_INTERFACE" -j MASQUERADE -m comment --comment "ap-addon-inet"
         fi
+    elif is_masquerading_enabled; then
+        iptables-nft -t nat -D POSTROUTING -o "$IPTABLES_ROUTE_INTERFACE" -j MASQUERADE -m comment --comment "ap-addon-inet"
+    fi
 
-        ## Allow forwarding if not already allowed
-        if ! is_forwarding_enabled; then
-            iptables-nft -A FORWARD -i "$INTERFACE" -o "$IPTABLES_ROUTE_INTERFACE" -j ACCEPT -m comment --comment "ap-addon-inet"
-            iptables-nft -A FORWARD -i "$IPTABLES_ROUTE_INTERFACE" -o "$INTERFACE" -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT -m comment --comment "ap-addon-inet"
-        fi
-    else
-        ## Remove masquerade if present
-        if is_masquerading_enabled; then
-            iptables-nft -t nat -D POSTROUTING -o "$IPTABLES_ROUTE_INTERFACE" -j MASQUERADE -m comment --comment "ap-addon-inet"
-        fi
+    ## Allow forwarding if not already allowed
+    if ! is_forwarding_enabled; then
+        iptables-nft -A FORWARD -i "$INTERFACE" -o "$IPTABLES_ROUTE_INTERFACE" -j ACCEPT -m comment --comment "ap-addon-inet"
+        iptables-nft -A FORWARD -i "$IPTABLES_ROUTE_INTERFACE" -o "$INTERFACE" -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT -m comment --comment "ap-addon-inet"
+    fi
+else
+    ## Remove masquerade if present
+    if is_masquerading_enabled; then
+        iptables-nft -t nat -D POSTROUTING -o "$IPTABLES_ROUTE_INTERFACE" -j MASQUERADE -m comment --comment "ap-addon-inet"
+    fi
 
-        ## Remove forwarding if present
-        if is_forwarding_enabled; then
-            iptables-nft -D FORWARD -i "$INTERFACE" -o "$IPTABLES_ROUTE_INTERFACE" -j ACCEPT -m comment --comment "ap-addon-inet"
-            iptables-nft -D FORWARD -i "$IPTABLES_ROUTE_INTERFACE" -o "$INTERFACE" -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT -m comment --comment "ap-addon-inet"
-        fi
+    ## Remove forwarding if present
+    if is_forwarding_enabled; then
+        iptables-nft -D FORWARD -i "$INTERFACE" -o "$IPTABLES_ROUTE_INTERFACE" -j ACCEPT -m comment --comment "ap-addon-inet"
+        iptables-nft -D FORWARD -i "$IPTABLES_ROUTE_INTERFACE" -o "$INTERFACE" -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT -m comment --comment "ap-addon-inet"
     fi
 fi
 
 # Start dnsmasq if DHCP is enabled in config, or if DHCP relay is configured.
-if [ "$NETWORK_MODE" != "bridge" ] && ( $(bashio::config.true "dhcp") || [ -n "$DHCP_RELAY_SERVER" ] ); then
+if $(bashio::config.true "dhcp") || [ -n "$DHCP_RELAY_SERVER" ]; then
     logger "## Starting dnsmasq daemon" 1
     dnsmasq -C /dnsmasq.conf
 fi
