@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.5.9] - 2026-05-17
+
+### Fixed
+- Renamed the visible networking modes to `offline` and `online`.
+- Reworked `online` mode to behave as a transparent AP that joins the upstream LAN, so clients receive DHCP, DNS and gateway from the upstream network.
+- Kept legacy mode names only as compatibility aliases.
+
+### Changed
+- Simplified the documentation and UI wording to describe AP-only versus AP-on-upstream-LAN behavior instead of bridge terminology.
+
 ## [0.5.8] - 2026-05-17
 
 ### Fixed

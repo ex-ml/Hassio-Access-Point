@@ -24,14 +24,14 @@ Please add
 - **netmask** (**required**): Subnet mask of the network
 - **broadcast** (**required**): Broadcast address of the network
 - **interface** (_optional_): Which wlan card to use. Default: wlan0
-- **network_mode** (_optional_): `router` (default) or `access_point`. `access_point` keeps the AP on its own subnet but lets an upstream DHCP server manage leases, DNS and gateway information through DHCP relay. The legacy value `bridge` is treated as `access_point` for compatibility.
-- **bridge_interface** (_optional_): Legacy option from the removed host bridge experiment. It is ignored.
-- **upstream_interface** (_optional_): Advanced manual override for the uplink interface. If empty, the add-on resolves the uplink from the route to the upstream DHCP server or the default gateway.
+- **network_mode** (_optional_): `offline` (default) or `online`. `offline` creates the AP's own subnet with local DHCP/NAT. `online` creates a transparent AP that joins the host WLAN to the upstream LAN and lets the upstream router hand out DHCP, DNS and gateway settings. Legacy values `router`, `access_point` and `bridge` are accepted for compatibility.
+- **bridge_interface** (_optional_): Advanced uplink device name used internally when `network_mode: online`. Leave alone unless you know why you need it.
+- **upstream_interface** (_optional_): Advanced manual override for the uplink interface. If empty, the add-on resolves the uplink from the host routing table.
 - **hide_ssid** (_optional_): Whether SSID is visible or hidden. 0 = visible, 1 = hidden. Defaults to visible
 - **dhcp** (_optional_): Enable or disable DHCP server. 0 = disable, 1 = enable. Defaults to disabled
 - **dhcp_start_addr** (_optional_): Start address for DHCP range. Required if DHCP enabled
 - **dhcp_end_addr** (_optional_): End address for DHCP range. Required if DHCP enabled
-- **dhcp_relay_server** (_optional_): Upstream DHCP server IP (for example your router) for relay mode. Used only when `dhcp` is disabled. In `access_point` mode this defaults to the host's default gateway when left empty.
+- **dhcp_relay_server** (_optional_): Upstream DHCP server IP. Used only in `offline` mode when you want DHCP relay instead of a local server.
 - **allow_mac_addresses** (_optional_): List of MAC addresses to allow. Note: if using allow, blocks everything not in list
 - **deny_mac_addresses** (_optional_): List of MAC addresses to block. Note: if using deny, allows everything not in list
 - **debug** (_optional_): Set logging level. 0 = basic output, 1 = show addon detail, 2 = same as 1 plus run hostapd in debug mode
@@ -45,10 +45,10 @@ Note: use either allow or deny lists for MAC filtering. If using allow, deny wil
 
 ### Device behavior
 
-- `router`: Original add-on behavior. The Home Assistant host acts as the AP gateway. DHCP can be local, and NAT/internet access can be enabled for clients.
-- `access_point`: Safe upstream-managed mode. The add-on keeps the AP interface on its own subnet, relays DHCP to the upstream router, and routes traffic without rewriting the host uplink into a Linux bridge.
+- `offline`: AP-only mode on its own subnet. Local DHCP can be enabled, NAT can be enabled, and no upstream LAN is required.
+- `online`: Transparent AP mode. WLAN clients join the upstream LAN and inherit DHCP, DNS and gateway from the upstream router.
 
-`access_point` is intentionally not a transparent layer-2 bridge. If the upstream router should hand out leases for the AP subnet, it must know a return route for that AP subnet via the Home Assistant host.
+Legacy names `router`, `access_point` and `bridge` map to these two modes so older configs keep working.
 
 ### Example configuration
 
@@ -60,7 +60,7 @@ Note: use either allow or deny lists for MAC filtering. If using allow, deny wil
     "netmask": "255.255.255.0",
     "broadcast": "192.168.10.255",
     "interface": "wlan0",
-    "network_mode": "router",
+    "network_mode": "offline",
     "bridge_interface": "br-ap",
     "upstream_interface": "",
     "hide_ssid": "1",
@@ -86,10 +86,8 @@ Note: use either allow or deny lists for MAC filtering. If using allow, deny wil
     "netmask": "255.255.255.0",
     "broadcast": "192.168.20.255",
     "interface": "wlan0",
-    "network_mode": "access_point",
-    "dhcp": false,
-    "dhcp_relay_server": "192.168.178.1",
-    "client_internet_access": true
+    "network_mode": "online",
+    "client_internet_access": false
 ```
 
 ### Device & OS compatibility

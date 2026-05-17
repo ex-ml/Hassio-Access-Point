@@ -30,15 +30,15 @@
 		},
 		"network_mode": {
 			"name": "Comportement de l'appareil",
-			"description": "Utilisez 'router' pour le mode NAT/routé d'origine, ou 'access_point' pour un DHCP amont via relais. La valeur historique 'bridge' est acceptée comme alias de 'access_point'."
+			"description": "Utilisez 'offline' pour un sous-réseau AP local avec DHCP/NAT, ou 'online' pour un point d'accès transparent qui rejoint le LAN amont. Les valeurs historiques 'router', 'access_point' et 'bridge' sont acceptées pour compatibilité."
 		},
 		"bridge_interface": {
-			"name": "Avancé : nom de bridge historique",
-			"description": "Obsolète et ignoré. Le mode bridge transparent sur l'hôte a été supprimé car il cassait le réseau de l'hôte."
+			"name": "Avancé : nom du dispositif amont",
+			"description": "Nom interne avancé utilisé lorsque le point d'accès est placé en ligne. Ne pas modifier sauf si nécessaire."
 		},
 		"upstream_interface": {
 			"name": "Avancé : surcharge d'interface amont",
-			"description": "Surcharge manuelle optionnelle de l'interface amont. Laisser vide pour la détecter automatiquement depuis la route vers le serveur DHCP amont ou la passerelle par défaut."
+			"description": "Surcharge manuelle optionnelle de l'interface amont. Laisser vide pour la détecter automatiquement depuis la table de routage de l'hôte."
 		},
 		"hide_ssid": {
 			"name": "Cacher le SSID du réseau",
@@ -46,7 +46,7 @@
 		},
 		"dhcp": {
 			"name": "DHCP : activer le serveur local",
-			"description": "Activer le serveur DHCP local DNSMASQ sur le sous-réseau du point d'accès. Désactivez-le pour le mode point d'accès géré par l'amont."
+			"description": "Activer le serveur DHCP local DNSMASQ sur le sous-réseau du point d'accès. En mode online, il est ignoré car le LAN amont fournit le DHCP."
 		},
 		"dhcp_start_addr": {
 			"name": "DHCP : début de plage",
@@ -58,7 +58,7 @@
 		},
 		"dhcp_relay_server": {
 			"name": "DHCP : routeur / serveur amont",
-			"description": "Adresse IP optionnelle du serveur DHCP amont pour le mode relais. Laissez vide en mode point d'accès pour utiliser automatiquement la passerelle par défaut de l'hôte."
+			"description": "Adresse IP optionnelle du serveur DHCP amont pour les configurations relais hors ligne. En mode online, le LAN amont fournit directement le DHCP."
 		},
 		"allow_mac_addresses": {
 			"name": "Liste blanche d'adresses MAC",
@@ -82,7 +82,7 @@
 		},
 		"client_internet_access": {
 			"name": "Routage : autoriser l'accès Internet des clients",
-			"description": "Autorise le trafic des clients vers l'interface amont détectée. Le mode routeur ajoute du NAT ; le mode point d'accès ne fait que relayer."
+			"description": "Autorise le trafic des clients vers l'interface amont détectée. Le mode offline ajoute du NAT ; le mode online est géré par le LAN amont."
 		},
 		"client_dns_override": {
 			"name": "DHCP : surcharge DNS client",

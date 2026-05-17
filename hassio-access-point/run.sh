@@ -59,22 +59,19 @@ CLIENT_INTERNET_ACCESS=$(bashio::config.false 'client_internet_access'; echo $?)
 CLIENT_DNS_OVERRIDE=$(bashio::config 'client_dns_override' )
 DNSMASQ_CONFIG_OVERRIDE=$(bashio::config 'dnsmasq_config_override' )
 
-DEVICE_BEHAVIOR="$NETWORK_MODE"
-if [ "$DEVICE_BEHAVIOR" = "bridge" ]; then
-    DEVICE_BEHAVIOR="access_point"
-    logger "network_mode=bridge is deprecated. Using access_point behavior without host bridge reconfiguration." 0
+DEVICE_MODE="$NETWORK_MODE"
+if [ "$DEVICE_MODE" = "router" ]; then
+    DEVICE_MODE="offline"
+elif [ "$DEVICE_MODE" = "access_point" ] || [ "$DEVICE_MODE" = "bridge" ]; then
+    DEVICE_MODE="online"
 fi
 
-if [ "$DEVICE_BEHAVIOR" != "router" ] && [ "$DEVICE_BEHAVIOR" != "access_point" ]; then
-    bashio::exit.nok "Invalid network_mode '$NETWORK_MODE'. Use 'router' or 'access_point'."
+if [ "$DEVICE_MODE" != "offline" ] && [ "$DEVICE_MODE" != "online" ]; then
+    bashio::exit.nok "Invalid network_mode '$NETWORK_MODE'. Use 'offline' or 'online'."
 fi
 
-if [ "$DEVICE_BEHAVIOR" = "access_point" ] && $(bashio::config.true "dhcp"); then
-    bashio::exit.nok "Access point mode expects upstream DHCP. Disable local dhcp and optionally set dhcp_relay_server."
-fi
-
-if $(bashio::config.true "dhcp") && [ -n "$DHCP_RELAY_SERVER" ]; then
-    logger "Both dhcp and dhcp_relay_server are set. Using local DHCP server mode and ignoring relay." 0
+if [ "$DEVICE_MODE" = "online" ] && $(bashio::config.true "dhcp"); then
+    logger "Online mode ignores local dhcp settings. Upstream DHCP should provide leases." 0
 fi
 
 route_interface_for_target() {
@@ -134,7 +131,7 @@ if [ "$DEVICE_BEHAVIOR" = "access_point" ] && [ -z "$DHCP_RELAY_SERVER" ] && [ -
     logger "Access point mode auto-selected upstream DHCP server: $DHCP_RELAY_SERVER" 0
 fi
 if [ -n "$BRIDGE_INTERFACE" ]; then
-    logger "bridge_interface is ignored. Transparent host bridge mode has been removed." 1
+    logger "Online uplink device name: $BRIDGE_INTERFACE" 1
 fi
 
 echo "Starting Hass.io Access Point Addon"
@@ -151,15 +148,55 @@ nmcli dev set $INTERFACE managed no
 logger "Run command: ip link set $INTERFACE down" 1
 ip link set $INTERFACE down
 
-logger "Add to /etc/network/interfaces: address $ADDRESS" 1
-echo "address $ADDRESS"$'\n' >> /etc/network/interfaces
-logger "Add to /etc/network/interfaces: netmask $NETMASK" 1
-echo "netmask $NETMASK"$'\n' >> /etc/network/interfaces
-logger "Add to /etc/network/interfaces: broadcast $BROADCAST" 1
-echo "broadcast $BROADCAST"$'\n' >> /etc/network/interfaces
+if [ "$DEVICE_MODE" = "online" ]; then
+    logger "Online mode selected. Setting up AP-to-LAN uplink." 1
+    if [ -d "/sys/class/net/$ROUTE_INTERFACE/bridge" ]; then
+        BRIDGE_DEVICE="$ROUTE_INTERFACE"
+        logger "Using existing uplink device: $BRIDGE_DEVICE" 1
+    else
+        BRIDGE_DEVICE="$BRIDGE_INTERFACE"
+        logger "Creating online uplink device: $BRIDGE_DEVICE" 1
+        ip link show "$BRIDGE_DEVICE" >/dev/null 2>&1 || ip link add name "$BRIDGE_DEVICE" type bridge
+        logger "Run command: ip link set $ROUTE_INTERFACE master $BRIDGE_DEVICE" 1
+        ip link set "$ROUTE_INTERFACE" master "$BRIDGE_DEVICE"
+    fi
 
-logger "Run command: ip link set $INTERFACE up" 1
-ip link set $INTERFACE up
+    if [ -n "$DEFAULT_GATEWAY" ]; then
+        logger "Run command: ip route replace default via $DEFAULT_GATEWAY dev $BRIDGE_DEVICE" 1
+        ip route replace default via "$DEFAULT_GATEWAY" dev "$BRIDGE_DEVICE"
+    fi
+
+    logger "Run command: ip addr flush dev $ROUTE_INTERFACE" 1
+    ip addr flush dev "$ROUTE_INTERFACE"
+
+    logger "Run command: ip link set $INTERFACE master $BRIDGE_DEVICE" 1
+    ip link set "$INTERFACE" master "$BRIDGE_DEVICE"
+    logger "Run command: ip link set $ROUTE_INTERFACE up" 1
+    ip link set "$ROUTE_INTERFACE" up
+    logger "Run command: ip link set $BRIDGE_DEVICE up" 1
+    ip link set "$BRIDGE_DEVICE" up
+
+    logger "Add to /etc/network/interfaces: address $ADDRESS" 1
+    echo "address $ADDRESS"$'\n' >> /etc/network/interfaces
+    logger "Add to /etc/network/interfaces: netmask $NETMASK" 1
+    echo "netmask $NETMASK"$'\n' >> /etc/network/interfaces
+    logger "Add to /etc/network/interfaces: broadcast $BROADCAST" 1
+    echo "broadcast $BROADCAST"$'\n' >> /etc/network/interfaces
+
+    logger "Run command: ip link set $INTERFACE up" 1
+    ip link set "$INTERFACE" up
+else
+    logger "Offline mode selected. Using local AP subnet." 1
+    logger "Add to /etc/network/interfaces: address $ADDRESS" 1
+    echo "address $ADDRESS"$'\n' >> /etc/network/interfaces
+    logger "Add to /etc/network/interfaces: netmask $NETMASK" 1
+    echo "netmask $NETMASK"$'\n' >> /etc/network/interfaces
+    logger "Add to /etc/network/interfaces: broadcast $BROADCAST" 1
+    echo "broadcast $BROADCAST"$'\n' >> /etc/network/interfaces
+
+    logger "Run command: ip link set $INTERFACE up" 1
+    ip link set "$INTERFACE" up
+fi
 
 # Setup signal handlers
 trap 'term_handler' SIGTERM
@@ -221,12 +258,21 @@ else
 fi
 
 
-# Set address for the selected interface. Not sure why this is now not being set via /etc/network/interfaces, but maybe interfaces file is no longer required...
-ifconfig $INTERFACE $ADDRESS netmask $NETMASK broadcast $BROADCAST
+# Set address for the selected interface or bridge.
+if [ "$DEVICE_MODE" = "online" ]; then
+    ifconfig $BRIDGE_DEVICE $ADDRESS netmask $NETMASK broadcast $BROADCAST
+else
+    ifconfig $INTERFACE $ADDRESS netmask $NETMASK broadcast $BROADCAST
+fi
 
 # Add interface to hostapd.conf
 logger "Add to hostapd.conf: interface=$INTERFACE" 1
 echo "interface=$INTERFACE"$'\n' >> /hostapd.conf
+
+if [ "$DEVICE_MODE" = "online" ]; then
+    logger "Add to hostapd.conf: online_uplink=$BRIDGE_DEVICE" 1
+    echo "bridge=$BRIDGE_DEVICE"$'\n' >> /hostapd.conf
+fi
 
 # Append override options to hostapd.conf
 if [ ${#HOSTAPD_CONFIG_OVERRIDE} -ge 1 ]; then
@@ -238,8 +284,8 @@ if [ ${#HOSTAPD_CONFIG_OVERRIDE} -ge 1 ]; then
     done
 fi
 
-# Setup dnsmasq.conf if DHCP is enabled in config
-if $(bashio::config.true "dhcp"); then
+# Setup dnsmasq.conf if DHCP is enabled in config and we are not in online mode
+if [ "$DEVICE_MODE" = "offline" ] && $(bashio::config.true "dhcp"); then
     logger "# DHCP enabled. Setup dnsmasq:" 1
     logger "Add to dnsmasq.conf: dhcp-range=$DHCP_START_ADDR,$DHCP_END_ADDR,12h" 1
     echo "dhcp-range=$DHCP_START_ADDR,$DHCP_END_ADDR,12h"$'\n' >> /dnsmasq.conf
@@ -280,24 +326,6 @@ if $(bashio::config.true "dhcp"); then
             logger "Add to dnsmasq.conf: $override" 0
         done
     fi
-elif [ -n "$DHCP_RELAY_SERVER" ]; then
-    logger "# DHCP relay enabled. Setup dnsmasq relay:" 1
-    logger "Add to dnsmasq.conf: interface=$INTERFACE" 1
-    echo "interface=$INTERFACE"$'\n' >> /dnsmasq.conf
-    logger "Add to dnsmasq.conf: bind-interfaces" 1
-    echo "bind-interfaces"$'\n' >> /dnsmasq.conf
-    logger "Add to dnsmasq.conf: dhcp-relay=$ADDRESS,$DHCP_RELAY_SERVER,$INTERFACE" 1
-    echo "dhcp-relay=$ADDRESS,$DHCP_RELAY_SERVER,$INTERFACE"$'\n' >> /dnsmasq.conf
-
-    # Append override options to dnsmasq.conf
-    if [ ${#DNSMASQ_CONFIG_OVERRIDE} -ge 1 ]; then
-        logger "# Custom dnsmasq config options:" 0
-        DNSMASQ_OVERRIDES=($DNSMASQ_CONFIG_OVERRIDE)
-        for override in "${DNSMASQ_OVERRIDES[@]}"; do
-            echo "$override"$'\n' >> /dnsmasq.conf
-            logger "Add to dnsmasq.conf: $override" 0
-        done
-    fi
 else
 	logger "# DHCP not enabled. Skipping dnsmasq" 1
 fi
@@ -310,15 +338,11 @@ is_forwarding_enabled() {
     iptables-nft -C FORWARD -i "$INTERFACE" -o "$IPTABLES_ROUTE_INTERFACE" -j ACCEPT -m comment --comment "ap-addon-inet" 2>/dev/null
 }
 
-if $(bashio::config.true "client_internet_access"); then
-    if [ "$DEVICE_BEHAVIOR" = "router" ]; then
+if [ "$DEVICE_MODE" = "offline" ] && $(bashio::config.true "client_internet_access"); then
         ## Add masquerade if not already present
         if ! is_masquerading_enabled; then
             iptables-nft -t nat -A POSTROUTING -o "$IPTABLES_ROUTE_INTERFACE" -j MASQUERADE -m comment --comment "ap-addon-inet"
         fi
-    elif is_masquerading_enabled; then
-        iptables-nft -t nat -D POSTROUTING -o "$IPTABLES_ROUTE_INTERFACE" -j MASQUERADE -m comment --comment "ap-addon-inet"
-    fi
 
     ## Allow forwarding if not already allowed
     if ! is_forwarding_enabled; then
@@ -338,8 +362,8 @@ else
     fi
 fi
 
-# Start dnsmasq if DHCP is enabled in config, or if DHCP relay is configured.
-if $(bashio::config.true "dhcp") || [ -n "$DHCP_RELAY_SERVER" ]; then
+# Start dnsmasq only in offline mode.
+if [ "$DEVICE_MODE" = "offline" ] && $(bashio::config.true "dhcp"); then
     logger "## Starting dnsmasq daemon" 1
     dnsmasq -C /dnsmasq.conf
 fi

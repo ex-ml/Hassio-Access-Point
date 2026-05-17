@@ -30,15 +30,15 @@
 		},
 		"network_mode": {
 			"name": "Device Behavior",
-			"description": "Use 'router' for the original NAT/routed mode, or 'access_point' for upstream-managed DHCP via relay. The legacy value 'bridge' is accepted as an alias for 'access_point'."
+			"description": "Use 'offline' for a local AP subnet with DHCP/NAT, or 'online' for a transparent AP that joins the upstream LAN. Legacy values 'router', 'access_point' and 'bridge' are accepted for compatibility."
 		},
 		"bridge_interface": {
-			"name": "Advanced: Legacy Bridge Name",
-			"description": "Deprecated and ignored. Transparent host bridge mode has been removed because it broke host networking."
+			"name": "Advanced: Uplink Device Name",
+			"description": "Advanced internal device name used when the AP is placed online. Leave untouched unless you know why it matters."
 		},
 		"upstream_interface": {
 			"name": "Advanced: Uplink Interface Override",
-			"description": "Optional manual override for the uplink interface. Leave empty to detect it automatically from the route to the upstream DHCP server or default gateway."
+			"description": "Optional manual override for the uplink interface. Leave empty to detect it automatically from the host routing table."
 		},
 		"hide_ssid": {
 			"name": "Hide Network SSID",
@@ -46,7 +46,7 @@
 		},
 		"dhcp": {
 			"name": "DHCP: Enable Local Server",
-			"description": "Enable the local DNSMASQ DHCP server on the AP subnet. Disable this for upstream-managed access point mode."
+			"description": "Enable the local DNSMASQ DHCP server on the AP subnet. In online mode this is ignored because the upstream router provides DHCP."
 		},
 		"dhcp_start_addr": {
 			"name": "DHCP: Range Start",
@@ -58,7 +58,7 @@
 		},
 		"dhcp_relay_server": {
 			"name": "DHCP: Upstream Router / Server",
-			"description": "Optional upstream DHCP server IP for relay mode. Leave empty in access point mode to use the host's default gateway automatically."
+			"description": "Optional upstream DHCP server IP for offline relay setups. In online mode the upstream LAN handles DHCP directly."
 		},
 		"allow_mac_addresses": {
 			"name": "MAC Address Allowlist",
@@ -82,7 +82,7 @@
 		},
 		"client_internet_access": {
 			"name": "Routing: Enable Client Internet Access",
-			"description": "Allow traffic from AP clients to leave through the detected uplink. Router mode adds NAT; access point mode only forwards."
+			"description": "Allow traffic from AP clients to leave through the detected uplink. Offline mode adds NAT; online mode is handled by the upstream LAN."
 		},
 		"client_dns_override": {
 			"name": "DHCP: Client DNS Override",
