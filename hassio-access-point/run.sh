@@ -63,6 +63,22 @@ if ! $(bashio::config.true "dhcp") && [ -z "$DHCP_RELAY_SERVER" ]; then
     TRANSPARENT_UPLINK=true
 fi
 
+# Detect misconfiguration: relay mode with same subnet causes routing conflicts
+if [ -n "$DHCP_RELAY_SERVER" ] && ! $(bashio::config.true "dhcp"); then
+    # Extract first three octets to compare /24 networks (simplified check)
+    AP_NET_PREFIX=$(echo "$ADDRESS" | cut -d. -f1-3)
+    RELAY_NET_PREFIX=$(echo "$DHCP_RELAY_SERVER" | cut -d. -f1-3)
+    
+    if [ "$AP_NET_PREFIX" = "$RELAY_NET_PREFIX" ]; then
+        bashio::log.warning "DHCP relay server ($DHCP_RELAY_SERVER) is in same /24 subnet as AP address ($ADDRESS)."
+        bashio::log.warning "This causes routing conflicts. Automatically switching to transparent uplink mode."
+        bashio::log.warning "For proper relay mode, use different subnets (e.g., AP: 192.168.99.0/24, Uplink: 192.168.189.0/24)."
+        bashio::log.warning "For transparent mode, set dhcp_relay_server to empty string in config."
+        TRANSPARENT_UPLINK=true
+        DHCP_RELAY_SERVER=""
+    fi
+fi
+
 route_interface_for_target() {
     target=$1
 
@@ -96,6 +112,15 @@ fi
 
 if [ -z "$ROUTE_INTERFACE" ]; then
     bashio::exit.nok "Unable to determine upstream interface from host routing table."
+fi
+
+# Validate that the resolved upstream interface actually exists
+if ! ip link show "$ROUTE_INTERFACE" >/dev/null 2>&1; then
+    if [ -n "$UPSTREAM_INTERFACE" ]; then
+        bashio::exit.nok "Configured upstream_interface '$UPSTREAM_INTERFACE' does not exist. Common mistake: 'end0' should be 'eth0'. Check 'ip link' output."
+    else
+        bashio::exit.nok "Resolved upstream interface '$ROUTE_INTERFACE' does not exist on this host."
+    fi
 fi
 
 # iptables interface matching does not accept '.' in interface names (e.g. vlan subinterfaces like eth0.20).
