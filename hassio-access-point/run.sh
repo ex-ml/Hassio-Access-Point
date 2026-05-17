@@ -216,22 +216,10 @@ if [ "$TRANSPARENT_UPLINK" = true ]; then
     logger "Run command: ifconfig $BRIDGE_DEVICE $ADDRESS netmask $NETMASK broadcast $BROADCAST" 1
     ifconfig $BRIDGE_DEVICE $ADDRESS netmask $NETMASK broadcast $BROADCAST
     
-    # In transparent bridge mode, disable proxy_arp - we want pure layer 2 forwarding
-    # Use sysctl where possible (dots in interface names need special handling via /proc)
-    logger "Disabling proxy_arp on $BRIDGE_DEVICE and $ROUTE_INTERFACE" 1
-    sysctl -w net.ipv4.conf.all.proxy_arp=0 2>/dev/null || true
-    echo 0 > "/proc/sys/net/ipv4/conf/${BRIDGE_DEVICE}/proxy_arp" 2>/dev/null || true
-    echo 0 > "/proc/sys/net/ipv4/conf/${ROUTE_INTERFACE}/proxy_arp" 2>/dev/null || true
-    
-    # Enable IP forwarding for bridge operation
-    logger "Enabling IP forwarding" 1
-    sysctl -w net.ipv4.ip_forward=1 2>/dev/null || echo 1 > /proc/sys/net/ipv4/ip_forward 2>/dev/null || true
-    
-    # Disable bridge netfilter to prevent iptables from filtering bridged packets
-    # This is crucial for transparent bridge mode - we want pure layer 2 bridging
-    sysctl -w net.bridge.bridge-nf-call-iptables=0 2>/dev/null || true
-    sysctl -w net.bridge.bridge-nf-call-ip6tables=0 2>/dev/null || true
-    sysctl -w net.bridge.bridge-nf-call-arptables=0 2>/dev/null || true
+    # In transparent bridge mode the Linux bridge forwards all L2 traffic (DHCP broadcasts,
+    # ARP, etc.) natively without any NAT or relay. Clients appear directly on the upstream
+    # network and receive IPs from the upstream DHCP server.
+    # No sysctl tuning needed - the bridge default behaviour is full passthrough.
     
     # Re-attempt default route now that bridge has an IP address
     if [ -n "$DEFAULT_GATEWAY" ]; then
