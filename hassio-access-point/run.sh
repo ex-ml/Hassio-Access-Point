@@ -205,22 +205,16 @@ if [ "$TRANSPARENT_UPLINK" = true ]; then
     logger "Run command: ip addr flush dev $ROUTE_INTERFACE" 1
     ip addr flush dev "$ROUTE_INTERFACE"
 
-    logger "Run command: ip link set $INTERFACE master $BRIDGE_DEVICE" 1
-    ip link set "$INTERFACE" master "$BRIDGE_DEVICE"
+    # Note: Do NOT add wireless interface to bridge here - hostapd will do it automatically
+    # when configured with bridge= parameter. Adding it manually causes "RTNETLINK not supported" error.
     logger "Run command: ip link set $ROUTE_INTERFACE up" 1
     ip link set "$ROUTE_INTERFACE" up
     logger "Run command: ip link set $BRIDGE_DEVICE up" 1
     ip link set "$BRIDGE_DEVICE" up
 
-    logger "Add to /etc/network/interfaces: address $ADDRESS" 1
-    echo "address $ADDRESS"$'\n' >> /etc/network/interfaces
-    logger "Add to /etc/network/interfaces: netmask $NETMASK" 1
-    echo "netmask $NETMASK"$'\n' >> /etc/network/interfaces
-    logger "Add to /etc/network/interfaces: broadcast $BROADCAST" 1
-    echo "broadcast $BROADCAST"$'\n' >> /etc/network/interfaces
-
-    logger "Run command: ip link set $INTERFACE up" 1
-    ip link set "$INTERFACE" up
+    # In bridge mode, interface configuration is on the bridge, not the wireless interface
+    # Hostapd will bring up the wireless interface and add it to the bridge automatically
+    logger "Wireless interface will be configured by hostapd with bridge=$BRIDGE_DEVICE" 1
 else
     logger "Local AP subnet selected." 1
     logger "Add to /etc/network/interfaces: address $ADDRESS" 1

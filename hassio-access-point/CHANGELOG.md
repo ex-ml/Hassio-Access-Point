@@ -1,5 +1,12 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+- Fixed "RTNETLINK answers: Not supported" error in transparent uplink mode when trying to manually add wireless interface to bridge.
+- Wireless interface is now correctly managed by hostapd, which automatically handles bridge membership and interface configuration.
+- Removed manual IP configuration and interface up commands for wireless interface in transparent bridge mode.
+
 ## [0.5.10] - 2026-05-17
 
 ### Fixed
