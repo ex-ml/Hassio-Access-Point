@@ -114,10 +114,10 @@ if [ -z "$ROUTE_INTERFACE" ]; then
     bashio::exit.nok "Unable to determine upstream interface from host routing table."
 fi
 
-# Validate that the resolved upstream interface actually exists
+# Validate that the resolved upstream interface actually exists BEFORE any bridge/transparent setup
 if ! ip link show "$ROUTE_INTERFACE" >/dev/null 2>&1; then
     if [ -n "$UPSTREAM_INTERFACE" ]; then
-        bashio::exit.nok "Configured upstream_interface '$UPSTREAM_INTERFACE' does not exist. Common mistake: 'end0' should be 'eth0'. Check 'ip link' output."
+        bashio::exit.nok "Configured upstream_interface '$UPSTREAM_INTERFACE' does not exist. Common mistake: 'end0' should be 'eth0'. Available interfaces: $(ip -o link show | awk -F': ' '{print $2}' | tr '\n' ' ')"
     else
         bashio::exit.nok "Resolved upstream interface '$ROUTE_INTERFACE' does not exist on this host."
     fi
@@ -173,7 +173,9 @@ if [ "$TRANSPARENT_UPLINK" = true ]; then
 
     if [ -n "$DEFAULT_GATEWAY" ]; then
         logger "Run command: ip route replace default via $DEFAULT_GATEWAY dev $BRIDGE_DEVICE" 1
-        ip route replace default via "$DEFAULT_GATEWAY" dev "$BRIDGE_DEVICE"
+        if ! ip route replace default via "$DEFAULT_GATEWAY" dev "$BRIDGE_DEVICE" 2>/dev/null; then
+            bashio::log.warning "Failed to set default route via $DEFAULT_GATEWAY on $BRIDGE_DEVICE. Gateway may not be reachable yet."
+        fi
     fi
 
     logger "Run command: ip addr flush dev $ROUTE_INTERFACE" 1
