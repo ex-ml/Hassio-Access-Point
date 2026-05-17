@@ -217,32 +217,21 @@ if [ "$TRANSPARENT_UPLINK" = true ]; then
     ifconfig $BRIDGE_DEVICE $ADDRESS netmask $NETMASK broadcast $BROADCAST
     
     # In transparent bridge mode, disable proxy_arp - we want pure layer 2 forwarding
-    logger "Run command: echo 0 > /proc/sys/net/ipv4/conf/$BRIDGE_DEVICE/proxy_arp" 1
-    echo 0 > /proc/sys/net/ipv4/conf/$BRIDGE_DEVICE/proxy_arp 2>/dev/null || true
-    
-    # Also disable on upstream interface  
-    if [ -f /proc/sys/net/ipv4/conf/$ROUTE_INTERFACE/proxy_arp ]; then
-        echo 0 > /proc/sys/net/ipv4/conf/$ROUTE_INTERFACE/proxy_arp 2>/dev/null || true
-    fi
+    # Use sysctl where possible (dots in interface names need special handling via /proc)
+    logger "Disabling proxy_arp on $BRIDGE_DEVICE and $ROUTE_INTERFACE" 1
+    sysctl -w net.ipv4.conf.all.proxy_arp=0 2>/dev/null || true
+    echo 0 > "/proc/sys/net/ipv4/conf/${BRIDGE_DEVICE}/proxy_arp" 2>/dev/null || true
+    echo 0 > "/proc/sys/net/ipv4/conf/${ROUTE_INTERFACE}/proxy_arp" 2>/dev/null || true
     
     # Enable IP forwarding for bridge operation
-    logger "Run command: echo 1 > /proc/sys/net/ipv4/ip_forward" 1
-    echo 1 > /proc/sys/net/ipv4/ip_forward
+    logger "Enabling IP forwarding" 1
+    sysctl -w net.ipv4.ip_forward=1 2>/dev/null || echo 1 > /proc/sys/net/ipv4/ip_forward 2>/dev/null || true
     
     # Disable bridge netfilter to prevent iptables from filtering bridged packets
     # This is crucial for transparent bridge mode - we want pure layer 2 bridging
-    if [ -f /proc/sys/net/bridge/bridge-nf-call-iptables ]; then
-        logger "Run command: echo 0 > /proc/sys/net/bridge/bridge-nf-call-iptables" 1
-        echo 0 > /proc/sys/net/bridge/bridge-nf-call-iptables
-    fi
-    if [ -f /proc/sys/net/bridge/bridge-nf-call-ip6tables ]; then
-        logger "Run command: echo 0 > /proc/sys/net/bridge/bridge-nf-call-ip6tables" 1
-        echo 0 > /proc/sys/net/bridge/bridge-nf-call-ip6tables
-    fi
-    if [ -f /proc/sys/net/bridge/bridge-nf-call-arptables ]; then
-        logger "Run command: echo 0 > /proc/sys/net/bridge/bridge-nf-call-arptables" 1
-        echo 0 > /proc/sys/net/bridge/bridge-nf-call-arptables
-    fi
+    sysctl -w net.bridge.bridge-nf-call-iptables=0 2>/dev/null || true
+    sysctl -w net.bridge.bridge-nf-call-ip6tables=0 2>/dev/null || true
+    sysctl -w net.bridge.bridge-nf-call-arptables=0 2>/dev/null || true
     
     # Re-attempt default route now that bridge has an IP address
     if [ -n "$DEFAULT_GATEWAY" ]; then
