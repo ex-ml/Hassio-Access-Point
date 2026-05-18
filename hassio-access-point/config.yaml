@@ -27,7 +27,6 @@ options:
   dhcp: false
   dhcp_start_addr: 192.168.99.10
   dhcp_end_addr: 192.168.99.20
-  dhcp_relay_server: ""
   allow_mac_addresses: []
   deny_mac_addresses: []
   debug: 0
@@ -49,7 +48,6 @@ schema:
   dhcp: bool
   dhcp_start_addr: match(^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$)?
   dhcp_end_addr: match(^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$)?
-  dhcp_relay_server: match(^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$)?
   allow_mac_addresses:
     - match(^([0-9a-fA-F]{2}:){4}[0-9a-fA-F]{2})?
   deny_mac_addresses:

@@ -14,7 +14,7 @@
 		},
 		"address": {
 			"name": "LAN : adresse du point d'accès",
-			"description": "Adresse IP de l'hôte Home Assistant sur le sous-réseau du point d'accès. En mode routeur, cet hôte est la passerelle ; en mode point d'accès, il relaie vers l'amont."
+			"description": "Adresse IP de l'hôte Home Assistant. En mode Routeur, c'est la passerelle pour les clients WiFi. En mode Point d'Accès, c'est l'adresse de gestion sur le réseau amont."
 		},
 		"netmask": {
 			"name": "LAN : masque",
@@ -42,7 +42,7 @@
 		},
 		"dhcp": {
 			"name": "DHCP : activer le serveur local",
-			"description": "Activer le serveur DHCP local DNSMASQ sur le sous-réseau du point d'accès. S'il est désactivé et qu'aucun relais n'est défini, le DHCP LAN amont est utilisé directement."
+			"description": "Activer le serveur DHCP local. Activé : l'addon fonctionne comme un Routeur avec son propre sous-réseau. Désactivé : l'addon fonctionne comme un Point d'Accès et les clients reçoivent leurs adresses du serveur DHCP amont."
 		},
 		"dhcp_start_addr": {
 			"name": "DHCP : début de plage",
@@ -51,10 +51,6 @@
 		"dhcp_end_addr": {
 			"name": "DHCP : fin de plage",
 			"description": "La fin de la plage d'adresses IP automatiquement assignées aux appareils."
-		},
-		"dhcp_relay_server": {
-			"name": "DHCP : routeur / serveur amont",
-			"description": "Adresse IP optionnelle du serveur DHCP amont pour les configurations en relais quand le DHCP local est désactivé. Laissez vide pour utiliser directement le DHCP du LAN amont."
 		},
 		"allow_mac_addresses": {
 			"name": "Liste blanche d'adresses MAC",
@@ -78,7 +74,7 @@
 		},
 		"client_internet_access": {
 			"name": "Routage : autoriser l'accès Internet des clients",
-			"description": "Autorise le trafic des clients vers l'interface amont détectée en mode routé. En mode LAN transparent, ce réglage n'est pas utilisé."
+			"description": "Autorise le trafic des clients WiFi vers internet via l'interface amont. Utilisé uniquement en mode Routeur (dhcp=true)."
 		},
 		"client_dns_override": {
 			"name": "DHCP : surcharge DNS client",

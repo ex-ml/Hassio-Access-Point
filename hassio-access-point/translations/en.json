@@ -14,7 +14,7 @@
 		},
 		"address": {
 			"name": "LAN: AP Address",
-			"description": "IP address of the Home Assistant host on the AP subnet. In router mode this device is the gateway; in access point mode it is the relay/router towards upstream."
+			"description": "IP address of the Home Assistant host. In Router mode this is the gateway for WiFi clients. In AP mode this is the management address on the upstream network."
 		},
 		"netmask": {
 			"name": "LAN: Netmask",
@@ -42,7 +42,7 @@
 		},
 		"dhcp": {
 			"name": "DHCP: Enable Local Server",
-			"description": "Enable the local DNSMASQ DHCP server on the AP subnet. If disabled and no relay server is set, upstream LAN DHCP is used directly."
+			"description": "Enable the local DHCP server. When enabled, the addon acts as a Router with its own subnet. When disabled, the addon acts as an Access Point and clients receive addresses from the upstream DHCP server."
 		},
 		"dhcp_start_addr": {
 			"name": "DHCP: Range Start",
@@ -51,10 +51,6 @@
 		"dhcp_end_addr": {
 			"name": "DHCP: Range End",
 			"description": "The end of the IP address range to automatically assign to devices."
-		},
-		"dhcp_relay_server": {
-			"name": "DHCP: Upstream Router / Server",
-			"description": "Optional upstream DHCP server IP for relay setups when local DHCP is disabled. Leave empty to use direct upstream LAN DHCP."
 		},
 		"allow_mac_addresses": {
 			"name": "MAC Address Allowlist",
@@ -78,7 +74,7 @@
 		},
 		"client_internet_access": {
 			"name": "Routing: Enable Client Internet Access",
-			"description": "Allow traffic from AP clients to leave through the detected uplink in routed mode. In transparent LAN mode this setting is not used."
+			"description": "Allow traffic from WiFi clients to reach the internet via the upstream interface. Only used in Router mode (dhcp=true)."
 		},
 		"client_dns_override": {
 			"name": "DHCP: Client DNS Override",

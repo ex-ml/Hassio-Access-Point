@@ -46,7 +46,6 @@ HIDE_SSID=$(bashio::config.false "hide_ssid"; echo $?)
 DHCP=$(bashio::config.false "dhcp"; echo $?)
 DHCP_START_ADDR=$(bashio::config "dhcp_start_addr" )
 DHCP_END_ADDR=$(bashio::config "dhcp_end_addr" )
-DHCP_RELAY_SERVER=$(bashio::config "dhcp_relay_server" "")
 DNSMASQ_CONFIG_OVERRIDE=$(bashio::config 'dnsmasq_config_override' )
 
 ALLOW_MAC_ADDRESSES=$(bashio::config 'allow_mac_addresses' )
@@ -57,27 +56,6 @@ HOSTAPD_CONFIG_OVERRIDE=$(bashio::config 'hostapd_config_override' )
 CLIENT_INTERNET_ACCESS=$(bashio::config.false 'client_internet_access'; echo $?)
 CLIENT_DNS_OVERRIDE=$(bashio::config 'client_dns_override' )
 DNSMASQ_CONFIG_OVERRIDE=$(bashio::config 'dnsmasq_config_override' )
-
-TRANSPARENT_UPLINK=false
-if ! $(bashio::config.true "dhcp") && [ -z "$DHCP_RELAY_SERVER" ]; then
-    TRANSPARENT_UPLINK=true
-fi
-
-# Detect misconfiguration: relay mode with same subnet causes routing conflicts
-if [ -n "$DHCP_RELAY_SERVER" ] && ! $(bashio::config.true "dhcp"); then
-    # Extract first three octets to compare /24 networks (simplified check)
-    AP_NET_PREFIX=$(echo "$ADDRESS" | cut -d. -f1-3)
-    RELAY_NET_PREFIX=$(echo "$DHCP_RELAY_SERVER" | cut -d. -f1-3)
-    
-    if [ "$AP_NET_PREFIX" = "$RELAY_NET_PREFIX" ]; then
-        bashio::log.warning "DHCP relay server ($DHCP_RELAY_SERVER) is in same /24 subnet as AP address ($ADDRESS)."
-        bashio::log.warning "This causes routing conflicts. Automatically switching to transparent uplink mode."
-        bashio::log.warning "For proper relay mode, use different subnets (e.g., AP: 192.168.99.0/24, Uplink: 192.168.189.0/24)."
-        bashio::log.warning "For transparent mode, set dhcp_relay_server to empty string in config."
-        TRANSPARENT_UPLINK=true
-        DHCP_RELAY_SERVER=""
-    fi
-fi
 
 route_interface_for_target() {
     target=$1
@@ -103,17 +81,6 @@ gateway_for_interface() {
 DEFAULT_GATEWAY=$(ip route show default | awk '/^default/ { print $3; exit }')
 DEFAULT_ROUTE_INTERFACE=$(ip route show default | awk '/^default/ { print $5; exit }')
 ROUTE_TARGET="$DEFAULT_GATEWAY"
-
-if [ -n "$DHCP_RELAY_SERVER" ]; then
-    ROUTE_TARGET="$DHCP_RELAY_SERVER"
-    # In relay mode with same subnet, the relay server is typically also the gateway
-    AP_NET_PREFIX=$(echo "$ADDRESS" | cut -d. -f1-3)
-    RELAY_NET_PREFIX=$(echo "$DHCP_RELAY_SERVER" | cut -d. -f1-3)
-    if [ "$AP_NET_PREFIX" = "$RELAY_NET_PREFIX" ]; then
-        DEFAULT_GATEWAY="$DHCP_RELAY_SERVER"
-        logger "Using DHCP relay server as gateway: $DEFAULT_GATEWAY" 1
-    fi
-fi
 
 # Allow explicit upstream interface override from configuration.
 if [ -n "$UPSTREAM_INTERFACE" ]; then
@@ -182,8 +149,8 @@ nmcli dev set $INTERFACE managed no
 logger "Run command: ip link set $INTERFACE down" 1
 ip link set $INTERFACE down
 
-if [ "$TRANSPARENT_UPLINK" = true ]; then
-    logger "Transparent uplink selected (dhcp=false and dhcp_relay_server empty)." 1
+if ! $(bashio::config.true "dhcp"); then
+    logger "AP mode selected (dhcp=false): bridging clients to upstream network." 1
     if [ -d "/sys/class/net/$ROUTE_INTERFACE/bridge" ]; then
         BRIDGE_DEVICE="$ROUTE_INTERFACE"
         logger "Using existing uplink device: $BRIDGE_DEVICE" 1
@@ -235,7 +202,7 @@ if [ "$TRANSPARENT_UPLINK" = true ]; then
     # Hostapd will bring up the wireless interface and add it to the bridge automatically
     logger "Wireless interface will be configured by hostapd with bridge=$BRIDGE_DEVICE" 1
 else
-    logger "Local AP subnet selected." 1
+    logger "Router mode selected (dhcp=true): clients get their own subnet." 1
     logger "Add to /etc/network/interfaces: address $ADDRESS" 1
     echo "address $ADDRESS"$'\n' >> /etc/network/interfaces
     logger "Add to /etc/network/interfaces: netmask $NETMASK" 1
@@ -308,8 +275,8 @@ fi
 
 
 # Set address for the selected interface or bridge.
-if [ "$TRANSPARENT_UPLINK" = true ]; then
-    # IP address already set earlier in transparent mode to enable gateway routing
+if ! $(bashio::config.true "dhcp"); then
+    # In AP mode the IP is already set on the bridge device above
     logger "Bridge IP address already configured: $ADDRESS" 1
 else
     ifconfig $INTERFACE $ADDRESS netmask $NETMASK broadcast $BROADCAST
@@ -319,8 +286,8 @@ fi
 logger "Add to hostapd.conf: interface=$INTERFACE" 1
 echo "interface=$INTERFACE"$'\n' >> /hostapd.conf
 
-if [ "$TRANSPARENT_UPLINK" = true ]; then
-    logger "Add to hostapd.conf: online_uplink=$BRIDGE_DEVICE" 1
+if ! $(bashio::config.true "dhcp"); then
+    logger "Add to hostapd.conf: bridge=$BRIDGE_DEVICE" 1
     echo "bridge=$BRIDGE_DEVICE"$'\n' >> /hostapd.conf
 fi
 
@@ -376,30 +343,10 @@ if $(bashio::config.true "dhcp"); then
             logger "Add to dnsmasq.conf: $override" 0
         done
     fi
-elif [ -n "$DHCP_RELAY_SERVER" ]; then
-    logger "# DHCP relay enabled. Setup dnsmasq relay:" 1
-    logger "Add to dnsmasq.conf: interface=$INTERFACE" 1
-    echo "interface=$INTERFACE"$'\n' >> /dnsmasq.conf
-    logger "Add to dnsmasq.conf: bind-interfaces" 1
-    echo "bind-interfaces"$'\n' >> /dnsmasq.conf
-    logger "Add to dnsmasq.conf: dhcp-relay=$ADDRESS,$DHCP_RELAY_SERVER,$INTERFACE" 1
-    echo "dhcp-relay=$ADDRESS,$DHCP_RELAY_SERVER,$INTERFACE"$'\n' >> /dnsmasq.conf
+else
+    # AP mode: bridge forwards DHCP transparently to upstream; no local DHCP server needed
+    logger "# AP mode: DHCP handled by upstream through bridge, skipping local DHCP server" 1
 
-    if [ ${#DNSMASQ_CONFIG_OVERRIDE} -ge 1 ]; then
-        logger "# Custom dnsmasq config options:" 0
-        DNSMASQ_OVERRIDES=($DNSMASQ_CONFIG_OVERRIDE)
-        for override in "${DNSMASQ_OVERRIDES[@]}"; do
-            echo "$override"$'\n' >> /dnsmasq.conf
-            logger "Add to dnsmasq.conf: $override" 0
-        done
-    fi
-elif [ "$TRANSPARENT_UPLINK" = true ]; then
-    # In transparent bridge mode, DHCP packets should pass through the bridge transparently
-    # WITHOUT dnsmasq relay - the bridge forwards broadcasts to the upstream DHCP server
-    logger "# Transparent mode: DHCP packets will be forwarded transparently through bridge" 1
-    logger "Clients will receive IP addresses directly from upstream DHCP server at $DEFAULT_GATEWAY" 1
-    # Note: dnsmasq will NOT be started in transparent mode unless custom config is provided
-    
     if [ ${#DNSMASQ_CONFIG_OVERRIDE} -ge 1 ]; then
         logger "# Custom dnsmasq config options detected - starting dnsmasq" 0
         DNSMASQ_OVERRIDES=($DNSMASQ_CONFIG_OVERRIDE)
@@ -407,14 +354,10 @@ elif [ "$TRANSPARENT_UPLINK" = true ]; then
             echo "$override"$'\n' >> /dnsmasq.conf
             logger "Add to dnsmasq.conf: $override" 0
         done
-        # Set flag to start dnsmasq later
-        START_DNSMASQ_IN_TRANSPARENT_MODE=true
+        START_DNSMASQ_IN_AP_MODE=true
     else
-        # No dnsmasq in transparent mode - bridge handles everything at layer 2
-        START_DNSMASQ_IN_TRANSPARENT_MODE=false
+        START_DNSMASQ_IN_AP_MODE=false
     fi
-else
-	logger "# DHCP not enabled. Skipping dnsmasq" 1
 fi
 
 is_masquerading_enabled() {
@@ -425,7 +368,7 @@ is_forwarding_enabled() {
     iptables-nft -C FORWARD -i "$INTERFACE" -o "$IPTABLES_ROUTE_INTERFACE" -j ACCEPT -m comment --comment "ap-addon-inet" 2>/dev/null
 }
 
-if [ "$TRANSPARENT_UPLINK" != true ] && $(bashio::config.true "client_internet_access"); then
+if $(bashio::config.true "dhcp") && $(bashio::config.true "client_internet_access"); then
         ## Add masquerade if not already present
         if ! is_masquerading_enabled; then
             iptables-nft -t nat -A POSTROUTING -o "$IPTABLES_ROUTE_INTERFACE" -j MASQUERADE -m comment --comment "ap-addon-inet"
@@ -451,7 +394,7 @@ fi
 
 # Start dnsmasq if DHCP is enabled in config or relay server is configured.
 # In transparent mode, only start if custom config is provided.
-if $(bashio::config.true "dhcp") || [ -n "$DHCP_RELAY_SERVER" ] || [ "${START_DNSMASQ_IN_TRANSPARENT_MODE:-false}" = "true" ]; then
+if $(bashio::config.true "dhcp") || [ "${START_DNSMASQ_IN_AP_MODE:-false}" = "true" ]; then
     logger "## Starting dnsmasq daemon" 1
     dnsmasq -C /dnsmasq.conf
 else
