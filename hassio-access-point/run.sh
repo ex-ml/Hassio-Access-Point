@@ -14,8 +14,6 @@ term_handler(){
             ip link set "$ROUTE_INTERFACE" nomaster 2>/dev/null || true
         fi
 
-        ip addr flush dev "$BRIDGE_DEVICE" 2>/dev/null || true
-
         if [ "$CREATED_BRIDGE" = "true" ]; then
             ip link set "$BRIDGE_DEVICE" down 2>/dev/null || true
             ip link delete "$BRIDGE_DEVICE" type bridge 2>/dev/null || true
@@ -81,11 +79,25 @@ CLIENT_INTERNET_ACCESS=$(bashio::config.false 'client_internet_access'; echo $?)
 CLIENT_DNS_OVERRIDE=$(bashio::config 'client_dns_override' )
 DNSMASQ_CONFIG_OVERRIDE=$(bashio::config 'dnsmasq_config_override' )
 
+# Requested mode matrix:
+# - bridge mode only when client_internet_access=true and dhcp=false
+# - all other combinations use own subnet mode
+BRIDGE_MODE=false
+if bashio::config.true "client_internet_access" && ! bashio::config.true "dhcp"; then
+    BRIDGE_MODE=true
+fi
+
 # Enforces required env variables before applying any network changes
-required_vars=(ssid wpa_passphrase channel address netmask broadcast interface)
+required_vars=(ssid wpa_passphrase channel interface)
 for required_var in "${required_vars[@]}"; do
     bashio::config.require "$required_var" "An AP cannot be created without this information"
 done
+
+if [ "$BRIDGE_MODE" != "true" ]; then
+    for required_var in address netmask broadcast; do
+        bashio::config.require "$required_var" "Own subnet mode requires address, netmask and broadcast"
+    done
+fi
 
 if [ "${#WPA_PASSPHRASE}" -lt 8 ]; then
     bashio::exit.nok "The WPA password must be at least 8 characters long!"
@@ -135,14 +147,14 @@ if [ -z "$ROUTE_INTERFACE" ]; then
     ROUTE_INTERFACE="$DEFAULT_ROUTE_INTERFACE"
 fi
 
-if [ -z "$ROUTE_INTERFACE" ]; then
+if [ -z "$ROUTE_INTERFACE" ] && ([ "$BRIDGE_MODE" = "true" ] || bashio::config.true "client_internet_access"); then
     bashio::exit.nok "Unable to determine upstream interface from host routing table."
 fi
 
 # Validate that the resolved upstream interface actually exists BEFORE any bridge/transparent setup
-if ! ip link show "$ROUTE_INTERFACE" >/dev/null 2>&1; then
+if [ -n "$ROUTE_INTERFACE" ] && ! ip link show "$ROUTE_INTERFACE" >/dev/null 2>&1; then
     if [ -n "$UPSTREAM_INTERFACE" ]; then
-        bashio::exit.nok "Configured upstream_interface '$UPSTREAM_INTERFACE' does not exist. Common mistake: 'end0' should be 'eth0'. Available interfaces: $(ip -o link show | awk -F': ' '{print $2}' | tr '\n' ' ')"
+        bashio::exit.nok "Configured upstream_interface '$UPSTREAM_INTERFACE' does not exist. Available interfaces: $(ip -o link show | awk -F': ' '{print $2}' | tr '\n' ' ')"
     else
         bashio::exit.nok "Resolved upstream interface '$ROUTE_INTERFACE' does not exist on this host."
     fi
@@ -151,7 +163,7 @@ fi
 # iptables interface matching does not accept '.' in interface names (e.g. vlan subinterfaces like eth0.20).
 # Convert such names to a '+' wildcard (eth0+) so rules can be applied safely.
 IPTABLES_ROUTE_INTERFACE="$ROUTE_INTERFACE"
-if [[ "$IPTABLES_ROUTE_INTERFACE" == *.* ]]; then
+if [ -n "$IPTABLES_ROUTE_INTERFACE" ] && [[ "$IPTABLES_ROUTE_INTERFACE" == *.* ]]; then
     IPTABLES_ROUTE_INTERFACE="${IPTABLES_ROUTE_INTERFACE%%.*}+"
 fi
 
@@ -183,8 +195,8 @@ nmcli dev set "$INTERFACE" managed no
 logger "Run command: ip link set $INTERFACE down" 1
 ip link set "$INTERFACE" down
 
-if ! bashio::config.true "dhcp"; then
-    logger "AP mode selected (dhcp=false): bridging clients to upstream network." 1
+if [ "$BRIDGE_MODE" = "true" ]; then
+    logger "Bridge mode selected (client_internet_access=true && dhcp=false): upstream handles IP/DHCP." 1
     if [ -d "/sys/class/net/$ROUTE_INTERFACE/bridge" ]; then
         BRIDGE_DEVICE="$ROUTE_INTERFACE"
         logger "Using existing uplink device: $BRIDGE_DEVICE" 1
@@ -199,47 +211,23 @@ if ! bashio::config.true "dhcp"; then
         ip link set "$ROUTE_INTERFACE" master "$BRIDGE_DEVICE"
     fi
 
-    if [ -n "$DEFAULT_GATEWAY" ]; then
-        logger "Run command: ip route replace default via $DEFAULT_GATEWAY dev $BRIDGE_DEVICE" 1
-        if ! ip route replace default via "$DEFAULT_GATEWAY" dev "$BRIDGE_DEVICE" 2>/dev/null; then
-            bashio::log.warning "Failed to set default route via $DEFAULT_GATEWAY on $BRIDGE_DEVICE. Gateway may not be reachable yet."
-        fi
-    fi
-
-    logger "Run command: ip addr flush dev $ROUTE_INTERFACE" 1
-    ip addr flush dev "$ROUTE_INTERFACE"
-
     # Note: Do NOT add wireless interface to bridge here - hostapd will do it automatically
     # when configured with bridge= parameter. Adding it manually causes "RTNETLINK not supported" error.
     logger "Run command: ip link set $ROUTE_INTERFACE up" 1
     ip link set "$ROUTE_INTERFACE" up
     logger "Run command: ip link set $BRIDGE_DEVICE up" 1
     ip link set "$BRIDGE_DEVICE" up
-    
-    # Set IP address on bridge BEFORE setting default route
-    logger "Run command: ifconfig $BRIDGE_DEVICE $ADDRESS netmask $NETMASK broadcast $BROADCAST" 1
-    ifconfig "$BRIDGE_DEVICE" "$ADDRESS" netmask "$NETMASK" broadcast "$BROADCAST"
-    
+
     # In transparent bridge mode the Linux bridge forwards all L2 traffic (DHCP broadcasts,
     # ARP, etc.) natively without any NAT or relay. Clients appear directly on the upstream
     # network and receive IPs from the upstream DHCP server.
-    # No sysctl tuning needed - the bridge default behaviour is full passthrough.
-    
-    # Re-attempt default route now that bridge has an IP address
-    if [ -n "$DEFAULT_GATEWAY" ]; then
-        logger "Run command: ip route replace default via $DEFAULT_GATEWAY dev $BRIDGE_DEVICE (retry with IP configured)" 1
-        if ! ip route replace default via "$DEFAULT_GATEWAY" dev "$BRIDGE_DEVICE" 2>/dev/null; then
-            bashio::log.warning "Still cannot set default route via $DEFAULT_GATEWAY on $BRIDGE_DEVICE. Gateway may not be on this network."
-        else
-            logger "Successfully set default route via $DEFAULT_GATEWAY on $BRIDGE_DEVICE" 1
-        fi
-    fi
+    # Do not set L3 addressing or routes here; upstream network remains authoritative.
 
     # In bridge mode, interface configuration is on the bridge, not the wireless interface
     # Hostapd will bring up the wireless interface and add it to the bridge automatically
     logger "Wireless interface will be configured by hostapd with bridge=$BRIDGE_DEVICE" 1
 else
-    logger "Router mode selected (dhcp=true): clients get their own subnet." 1
+    logger "Own subnet mode selected: clients are isolated from upstream L2." 1
     logger "Add to /etc/network/interfaces: address $ADDRESS" 1
     append_if_missing /etc/network/interfaces "address $ADDRESS"
     logger "Add to /etc/network/interfaces: netmask $NETMASK" 1
@@ -312,7 +300,7 @@ fi
 
 
 # Set address for the selected interface or bridge.
-if ! bashio::config.true "dhcp"; then
+if [ "$BRIDGE_MODE" = "true" ]; then
     # In AP mode the IP is already set on the bridge device above
     logger "Bridge IP address already configured: $ADDRESS" 1
 else
@@ -323,7 +311,7 @@ fi
 logger "Add to hostapd.conf: interface=$INTERFACE" 1
 echo "interface=$INTERFACE"$'\n' >> /hostapd.conf
 
-if ! bashio::config.true "dhcp"; then
+if [ "$BRIDGE_MODE" = "true" ]; then
     logger "Add to hostapd.conf: bridge=$BRIDGE_DEVICE" 1
     echo "bridge=$BRIDGE_DEVICE"$'\n' >> /hostapd.conf
 fi
@@ -341,7 +329,7 @@ if [ ${#HOSTAPD_CONFIG_OVERRIDE} -ge 1 ]; then
 fi
 
 # Setup dnsmasq.conf if DHCP is enabled in config
-if bashio::config.true "dhcp"; then
+if [ "$BRIDGE_MODE" != "true" ] && bashio::config.true "dhcp"; then
     logger "# DHCP enabled. Setup dnsmasq:" 1
     logger "Add to dnsmasq.conf: dhcp-range=$DHCP_START_ADDR,$DHCP_END_ADDR,12h" 1
     echo "dhcp-range=$DHCP_START_ADDR,$DHCP_END_ADDR,12h"$'\n' >> /dnsmasq.conf
@@ -387,10 +375,12 @@ if bashio::config.true "dhcp"; then
         done
     fi
 else
-    # AP mode: bridge forwards DHCP transparently to upstream; no local DHCP server needed
-    logger "# AP mode: DHCP handled by upstream through bridge, skipping local DHCP server" 1
+    if [ "$BRIDGE_MODE" = "true" ]; then
+        # Bridge mode: upstream handles DHCP, local server stays off unless explicitly overridden.
+        logger "# Bridge mode: DHCP handled by upstream, skipping local DHCP server" 1
+    fi
 
-    if [ ${#DNSMASQ_CONFIG_OVERRIDE} -ge 1 ]; then
+    if [ "$BRIDGE_MODE" = "true" ] && [ ${#DNSMASQ_CONFIG_OVERRIDE} -ge 1 ]; then
         logger "# Custom dnsmasq config options detected - starting dnsmasq" 0
         set -f
         DNSMASQ_OVERRIDES=( $DNSMASQ_CONFIG_OVERRIDE )
@@ -406,14 +396,20 @@ else
 fi
 
 is_masquerading_enabled() {
+    if [ -z "$IPTABLES_ROUTE_INTERFACE" ]; then
+        return 1
+    fi
     iptables-nft -t nat -C POSTROUTING -o "$IPTABLES_ROUTE_INTERFACE" -j MASQUERADE -m comment --comment "ap-addon-inet" 2>/dev/null
 }
 
 is_forwarding_enabled() {
+    if [ -z "$IPTABLES_ROUTE_INTERFACE" ]; then
+        return 1
+    fi
     iptables-nft -C FORWARD -i "$INTERFACE" -o "$IPTABLES_ROUTE_INTERFACE" -j ACCEPT -m comment --comment "ap-addon-inet" 2>/dev/null
 }
 
-if bashio::config.true "dhcp" && bashio::config.true "client_internet_access"; then
+if [ "$BRIDGE_MODE" != "true" ] && bashio::config.true "client_internet_access"; then
         ## Add masquerade if not already present
         if ! is_masquerading_enabled; then
             iptables-nft -t nat -A POSTROUTING -o "$IPTABLES_ROUTE_INTERFACE" -j MASQUERADE -m comment --comment "ap-addon-inet"
