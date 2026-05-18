@@ -1,20 +1,45 @@
 #!/usr/bin/with-contenv bashio
 
 # SIGTERM-handler this funciton will be executed when the container receives the SIGTERM signal (when stopping)
+CREATED_BRIDGE=false
 term_handler(){
-	logger "Stopping Hass.io Access Point" 0
-	ifdown $INTERFACE
-	ip link set $INTERFACE down
-	ip addr flush dev $INTERFACE
-	exit 0
+    logger "Stopping Hass.io Access Point" 0
+    ifdown "$INTERFACE" 2>/dev/null || true
+    ip link set "$INTERFACE" down 2>/dev/null || true
+    ip addr flush dev "$INTERFACE" 2>/dev/null || true
+
+    # Clean up bridge wiring performed in AP mode.
+    if [ -n "$BRIDGE_DEVICE" ]; then
+        if [ -n "$ROUTE_INTERFACE" ] && [ "$BRIDGE_DEVICE" != "$ROUTE_INTERFACE" ]; then
+            ip link set "$ROUTE_INTERFACE" nomaster 2>/dev/null || true
+        fi
+
+        ip addr flush dev "$BRIDGE_DEVICE" 2>/dev/null || true
+
+        if [ "$CREATED_BRIDGE" = "true" ]; then
+            ip link set "$BRIDGE_DEVICE" down 2>/dev/null || true
+            ip link delete "$BRIDGE_DEVICE" type bridge 2>/dev/null || true
+        fi
+    fi
+
+    exit 0
 }
 
 # Logging function to set verbosity of output to addon log
 logger(){
     msg=$1
     level=$2
-    if [ $DEBUG -ge $level ]; then
-        echo $msg
+    if [ "$DEBUG" -ge "$level" ]; then
+        echo "$msg"
+    fi
+}
+
+append_if_missing() {
+    file=$1
+    line=$2
+
+    if ! grep -Fxq "$line" "$file" 2>/dev/null; then
+        echo "$line" >> "$file"
     fi
 }
 
@@ -22,11 +47,11 @@ CONFIG_PATH=/data/options.json
 
 # Convert integer configs to boolean, to avoid a breaking old configs
 declare -r bool_configs=( hide_ssid client_internet_access dhcp )
-for i in $bool_configs ; do
+for i in "${bool_configs[@]}"; do
     config_value=$(bashio::config "$i")
-    if bashio::config.true $i || bashio::config.false $i ; then
+    if bashio::config.true "$i" || bashio::config.false "$i"; then
         continue
-    elif [ $config_value -eq 0 ] ; then
+    elif [ "$config_value" -eq 0 ]; then
         bashio::addon.option "$i" false
     else
         bashio::addon.option "$i" true
@@ -46,7 +71,6 @@ HIDE_SSID=$(bashio::config.false "hide_ssid"; echo $?)
 DHCP=$(bashio::config.false "dhcp"; echo $?)
 DHCP_START_ADDR=$(bashio::config "dhcp_start_addr" )
 DHCP_END_ADDR=$(bashio::config "dhcp_end_addr" )
-DNSMASQ_CONFIG_OVERRIDE=$(bashio::config 'dnsmasq_config_override' )
 
 ALLOW_MAC_ADDRESSES=$(bashio::config 'allow_mac_addresses' )
 DENY_MAC_ADDRESSES=$(bashio::config 'deny_mac_addresses' )
@@ -56,6 +80,16 @@ HOSTAPD_CONFIG_OVERRIDE=$(bashio::config 'hostapd_config_override' )
 CLIENT_INTERNET_ACCESS=$(bashio::config.false 'client_internet_access'; echo $?)
 CLIENT_DNS_OVERRIDE=$(bashio::config 'client_dns_override' )
 DNSMASQ_CONFIG_OVERRIDE=$(bashio::config 'dnsmasq_config_override' )
+
+# Enforces required env variables before applying any network changes
+required_vars=(ssid wpa_passphrase channel address netmask broadcast interface)
+for required_var in "${required_vars[@]}"; do
+    bashio::config.require "$required_var" "An AP cannot be created without this information"
+done
+
+if [ "${#WPA_PASSPHRASE}" -lt 8 ]; then
+    bashio::exit.nok "The WPA password must be at least 8 characters long!"
+fi
 
 route_interface_for_target() {
     target=$1
@@ -141,15 +175,15 @@ echo "Starting Hass.io Access Point Addon"
 logger "# Setup interface:" 1
 logger "Add to /etc/network/interfaces: iface $INTERFACE inet static" 1
 # Create and add our interface to interfaces file
-echo "iface $INTERFACE inet static"$'\n' >> /etc/network/interfaces
+append_if_missing /etc/network/interfaces "iface $INTERFACE inet static"
 
 logger "Run command: nmcli dev set $INTERFACE managed no" 1
-nmcli dev set $INTERFACE managed no
+nmcli dev set "$INTERFACE" managed no
 
 logger "Run command: ip link set $INTERFACE down" 1
-ip link set $INTERFACE down
+ip link set "$INTERFACE" down
 
-if ! $(bashio::config.true "dhcp"); then
+if ! bashio::config.true "dhcp"; then
     logger "AP mode selected (dhcp=false): bridging clients to upstream network." 1
     if [ -d "/sys/class/net/$ROUTE_INTERFACE/bridge" ]; then
         BRIDGE_DEVICE="$ROUTE_INTERFACE"
@@ -157,7 +191,10 @@ if ! $(bashio::config.true "dhcp"); then
     else
         BRIDGE_DEVICE="$BRIDGE_INTERFACE"
         logger "Creating online uplink device: $BRIDGE_DEVICE" 1
-        ip link show "$BRIDGE_DEVICE" >/dev/null 2>&1 || ip link add name "$BRIDGE_DEVICE" type bridge
+        if ! ip link show "$BRIDGE_DEVICE" >/dev/null 2>&1; then
+            ip link add name "$BRIDGE_DEVICE" type bridge
+            CREATED_BRIDGE=true
+        fi
         logger "Run command: ip link set $ROUTE_INTERFACE master $BRIDGE_DEVICE" 1
         ip link set "$ROUTE_INTERFACE" master "$BRIDGE_DEVICE"
     fi
@@ -181,7 +218,7 @@ if ! $(bashio::config.true "dhcp"); then
     
     # Set IP address on bridge BEFORE setting default route
     logger "Run command: ifconfig $BRIDGE_DEVICE $ADDRESS netmask $NETMASK broadcast $BROADCAST" 1
-    ifconfig $BRIDGE_DEVICE $ADDRESS netmask $NETMASK broadcast $BROADCAST
+    ifconfig "$BRIDGE_DEVICE" "$ADDRESS" netmask "$NETMASK" broadcast "$BROADCAST"
     
     # In transparent bridge mode the Linux bridge forwards all L2 traffic (DHCP broadcasts,
     # ARP, etc.) natively without any NAT or relay. Clients appear directly on the upstream
@@ -204,11 +241,11 @@ if ! $(bashio::config.true "dhcp"); then
 else
     logger "Router mode selected (dhcp=true): clients get their own subnet." 1
     logger "Add to /etc/network/interfaces: address $ADDRESS" 1
-    echo "address $ADDRESS"$'\n' >> /etc/network/interfaces
+    append_if_missing /etc/network/interfaces "address $ADDRESS"
     logger "Add to /etc/network/interfaces: netmask $NETMASK" 1
-    echo "netmask $NETMASK"$'\n' >> /etc/network/interfaces
+    append_if_missing /etc/network/interfaces "netmask $NETMASK"
     logger "Add to /etc/network/interfaces: broadcast $BROADCAST" 1
-    echo "broadcast $BROADCAST"$'\n' >> /etc/network/interfaces
+    append_if_missing /etc/network/interfaces "broadcast $BROADCAST"
 
     logger "Run command: ip link set $INTERFACE up" 1
     ip link set "$INTERFACE" up
@@ -217,15 +254,11 @@ fi
 # Setup signal handlers
 trap 'term_handler' SIGTERM
 
-# Enforces required env variables
-required_vars=(ssid wpa_passphrase channel address netmask broadcast)
-for required_var in "${required_vars[@]}"; do
-    bashio::config.require $required_var "An AP cannot be created without this information"
-done
-
-if [ ${#WPA_PASSPHRASE} -lt 8 ] ; then
-    bashio::exit.nok "The WPA password must be at least 8 characters long!"
-fi
+# Build fresh service configuration files on each start.
+: > /hostapd.conf
+: > /dnsmasq.conf
+: > /hostapd.allow
+: > /hostapd.deny
 
 # Setup hostapd.conf
 logger "# Setup hostapd:" 1
@@ -246,7 +279,9 @@ echo "ht_capab=$HT_CAPAB"$'\n' >> /hostapd.conf
 if [ ${#ALLOW_MAC_ADDRESSES} -ge 1 ]; then
     logger "Add to hostapd.conf: macaddr_acl=1" 1
     echo "macaddr_acl=1"$'\n' >> /hostapd.conf
-    ALLOWED=($ALLOW_MAC_ADDRESSES)
+    set -f
+    ALLOWED=( $ALLOW_MAC_ADDRESSES )
+    set +f
     logger "# Setup hostapd.allow:" 1
     logger "Allowed MAC addresses:" 0
     for mac in "${ALLOWED[@]}"; do
@@ -259,7 +294,9 @@ if [ ${#ALLOW_MAC_ADDRESSES} -ge 1 ]; then
 elif [ ${#DENY_MAC_ADDRESSES} -ge 1 ]; then
         logger "Add to hostapd.conf: macaddr_acl=0" 1
         echo "macaddr_acl=0"$'\n' >> /hostapd.conf
-        DENIED=($DENY_MAC_ADDRESSES)
+    set -f
+    DENIED=( $DENY_MAC_ADDRESSES )
+    set +f
         logger "Denied MAC addresses:" 0
         for mac in "${DENIED[@]}"; do
             echo "$mac"$'\n' >> /hostapd.deny
@@ -275,18 +312,18 @@ fi
 
 
 # Set address for the selected interface or bridge.
-if ! $(bashio::config.true "dhcp"); then
+if ! bashio::config.true "dhcp"; then
     # In AP mode the IP is already set on the bridge device above
     logger "Bridge IP address already configured: $ADDRESS" 1
 else
-    ifconfig $INTERFACE $ADDRESS netmask $NETMASK broadcast $BROADCAST
+    ifconfig "$INTERFACE" "$ADDRESS" netmask "$NETMASK" broadcast "$BROADCAST"
 fi
 
 # Add interface to hostapd.conf
 logger "Add to hostapd.conf: interface=$INTERFACE" 1
 echo "interface=$INTERFACE"$'\n' >> /hostapd.conf
 
-if ! $(bashio::config.true "dhcp"); then
+if ! bashio::config.true "dhcp"; then
     logger "Add to hostapd.conf: bridge=$BRIDGE_DEVICE" 1
     echo "bridge=$BRIDGE_DEVICE"$'\n' >> /hostapd.conf
 fi
@@ -294,7 +331,9 @@ fi
 # Append override options to hostapd.conf
 if [ ${#HOSTAPD_CONFIG_OVERRIDE} -ge 1 ]; then
     logger "# Custom hostapd config options:" 0
-    HOSTAPD_OVERRIDES=($HOSTAPD_CONFIG_OVERRIDE)
+    set -f
+    HOSTAPD_OVERRIDES=( $HOSTAPD_CONFIG_OVERRIDE )
+    set +f
     for override in "${HOSTAPD_OVERRIDES[@]}"; do
         echo "$override"$'\n' >> /hostapd.conf
         logger "Add to hostapd.conf: $override" 0
@@ -302,7 +341,7 @@ if [ ${#HOSTAPD_CONFIG_OVERRIDE} -ge 1 ]; then
 fi
 
 # Setup dnsmasq.conf if DHCP is enabled in config
-if $(bashio::config.true "dhcp"); then
+if bashio::config.true "dhcp"; then
     logger "# DHCP enabled. Setup dnsmasq:" 1
     logger "Add to dnsmasq.conf: dhcp-range=$DHCP_START_ADDR,$DHCP_END_ADDR,12h" 1
     echo "dhcp-range=$DHCP_START_ADDR,$DHCP_END_ADDR,12h"$'\n' >> /dnsmasq.conf
@@ -313,7 +352,9 @@ if $(bashio::config.true "dhcp"); then
     dns_array=()
     if [ ${#CLIENT_DNS_OVERRIDE} -ge 1 ]; then
         dns_string="dhcp-option=6"
-        DNS_OVERRIDES=($CLIENT_DNS_OVERRIDE)
+        set -f
+        DNS_OVERRIDES=( $CLIENT_DNS_OVERRIDE )
+        set +f
         for override in "${DNS_OVERRIDES[@]}"; do
             dns_string+=",$override"
         done
@@ -337,7 +378,9 @@ if $(bashio::config.true "dhcp"); then
     # Append override options to dnsmasq.conf
     if [ ${#DNSMASQ_CONFIG_OVERRIDE} -ge 1 ]; then
         logger "# Custom dnsmasq config options:" 0
-        DNSMASQ_OVERRIDES=($DNSMASQ_CONFIG_OVERRIDE)
+        set -f
+        DNSMASQ_OVERRIDES=( $DNSMASQ_CONFIG_OVERRIDE )
+        set +f
         for override in "${DNSMASQ_OVERRIDES[@]}"; do
             echo "$override"$'\n' >> /dnsmasq.conf
             logger "Add to dnsmasq.conf: $override" 0
@@ -349,7 +392,9 @@ else
 
     if [ ${#DNSMASQ_CONFIG_OVERRIDE} -ge 1 ]; then
         logger "# Custom dnsmasq config options detected - starting dnsmasq" 0
-        DNSMASQ_OVERRIDES=($DNSMASQ_CONFIG_OVERRIDE)
+        set -f
+        DNSMASQ_OVERRIDES=( $DNSMASQ_CONFIG_OVERRIDE )
+        set +f
         for override in "${DNSMASQ_OVERRIDES[@]}"; do
             echo "$override"$'\n' >> /dnsmasq.conf
             logger "Add to dnsmasq.conf: $override" 0
@@ -368,7 +413,7 @@ is_forwarding_enabled() {
     iptables-nft -C FORWARD -i "$INTERFACE" -o "$IPTABLES_ROUTE_INTERFACE" -j ACCEPT -m comment --comment "ap-addon-inet" 2>/dev/null
 }
 
-if $(bashio::config.true "dhcp") && $(bashio::config.true "client_internet_access"); then
+if bashio::config.true "dhcp" && bashio::config.true "client_internet_access"; then
         ## Add masquerade if not already present
         if ! is_masquerading_enabled; then
             iptables-nft -t nat -A POSTROUTING -o "$IPTABLES_ROUTE_INTERFACE" -j MASQUERADE -m comment --comment "ap-addon-inet"
@@ -394,7 +439,7 @@ fi
 
 # Start dnsmasq if DHCP is enabled in config or relay server is configured.
 # In transparent mode, only start if custom config is provided.
-if $(bashio::config.true "dhcp") || [ "${START_DNSMASQ_IN_AP_MODE:-false}" = "true" ]; then
+if bashio::config.true "dhcp" || [ "${START_DNSMASQ_IN_AP_MODE:-false}" = "true" ]; then
     logger "## Starting dnsmasq daemon" 1
     dnsmasq -C /dnsmasq.conf
 else
@@ -403,7 +448,7 @@ fi
 
 logger "## Starting hostapd daemon" 1
 # If debug level is greater than 1, start hostapd in debug mode
-if [ $DEBUG -gt 1 ]; then
+if [ "$DEBUG" -gt 1 ]; then
     hostapd -d /hostapd.conf & wait ${!}
 else
     hostapd /hostapd.conf & wait ${!}
