@@ -1,47 +1,55 @@
 {
 	"configuration": {
 		"ssid": {
-			"name": "SSID",
+			"name": "Sans fil : SSID",
 			"description": "Le nom du réseau WiFi que vous voulez créer."
 		},
 		"wpa_passphrase": {
-			"name": "Mot de passe WPA2",
+			"name": "Sans fil : mot de passe WPA2",
 			"description": "Le mot de passe pour votre réseau WiFi. Doit avoir au moins 8 caractères."
 		},
 		"channel": {
-			"name": "Numéro du canal 2,4GHz",
+			"name": "Sans fil : canal 2,4 GHz",
 			"description": "Le canal sur lequel diffuser. Si vous n'êtes pas sûr, les canaux 1, 6 ou 11 sont recommandés."
 		},
 		"address": {
-			"name": "Adresse IP de l'hôte",
-			"description": "Il s'agit de l'adresse IP de l'appareil Homeassistant sur le nouveau sous-réseau, qui fait office de routeur et (optionnellement) de serveur DHCP/DNS."
+			"name": "LAN : adresse du point d'accès",
+			"description": "Adresse IP de l'hôte Home Assistant. En mode Routeur, c'est la passerelle pour les clients WiFi. En mode Point d'Accès, c'est l'adresse de gestion sur le réseau amont."
 		},
 		"netmask": {
-			"name": "Masque de sous-réseau",
+			"name": "LAN : masque",
 			"description": "Le masque de réseau du sous-réseau hébergé. Laisser la valeur par défaut si vous n'êtes pas sûr."
 		},
 		"broadcast": {
-			"name": "Adresse de diffusion du sous-réseau",
+			"name": "LAN : adresse de diffusion",
 			"description": "L'adresse de diffusion du réseau. Doit toujours être la dernière adresse du sous-réseau. Laissez par défaut si vous n'êtes pas sûr."
 		},
 		"interface": {
-			"name": "Interface réseau",
+			"name": "Sans fil : interface",
 			"description": "L'interface réseau sans-fil à utiliser pour héberger ce réseau. Sur un Raspberry Pi, celle intégrée est wlan0 (défaut)."
+		},
+		"bridge_interface": {
+			"name": "Avancé : nom du dispositif amont",
+			"description": "Nom interne avancé utilisé lorsque le point d'accès est placé en ligne. Ne pas modifier sauf si nécessaire."
+		},
+		"upstream_interface": {
+			"name": "Avancé : surcharge d'interface amont",
+			"description": "Surcharge manuelle optionnelle de l'interface amont. Laisser vide pour la détecter automatiquement depuis la table de routage de l'hôte."
 		},
 		"hide_ssid": {
 			"name": "Cacher le SSID du réseau",
 			"description": "Cacher ou non le SSID du réseau. À utiliser avec précausion."
 		},
 		"dhcp": {
-			"name": "Activer le server DHCP",
-			"description": "Activer ou non un serveur DHCP DNSMASQ sur le sous-réseau."
+			"name": "DHCP : activer le serveur local",
+			"description": "Activer le serveur DHCP local. Activé : l'addon fonctionne comme un Routeur avec son propre sous-réseau. Désactivé : l'addon fonctionne comme un Point d'Accès et les clients reçoivent leurs adresses du serveur DHCP amont."
 		},
 		"dhcp_start_addr": {
-			"name": "Départ de la plage IP DHCP",
+			"name": "DHCP : début de plage",
 			"description": "Le départ de la plage d'adresses IP qui seront automatiquement assignées aux appareils."
 		},
 		"dhcp_end_addr": {
-			"name": "Fin de la plage IP DHCP",
+			"name": "DHCP : fin de plage",
 			"description": "La fin de la plage d'adresses IP automatiquement assignées aux appareils."
 		},
 		"allow_mac_addresses": {
@@ -65,15 +73,15 @@
 			"description": "Liste d'options à ajouter au fichier `hostpad.conf`. Ne pas modifier si vous ne savez pas ce que vous faîtes."
 		},
 		"client_internet_access": {
-			"name": "Autoriser l'accès internet",
-			"description": "Autoriser ou non l'accès internet au appreils connectés."
+			"name": "Routage : autoriser l'accès Internet des clients",
+			"description": "Autorise le trafic des clients WiFi vers internet via l'interface amont. Utilisé uniquement en mode Routeur (dhcp=true)."
 		},
 		"client_dns_override": {
-			"name": "Client DNS",
+			"name": "DHCP : surcharge DNS client",
 			"description": "Liste d'adresses IP de serveur DNS à utiliser. Si vide, utilisera les serveurs DNS par défaut de Home Assisstant."
 		},
 		"dnsmasq_config_override": {
-			"name": "Configuration personnalisée de DNSMASQ",
+			"name": "Avancé : configuration personnalisée DNSMASQ",
 			"description": "Liste d'options à ajouter au fichier `dnsmasq.conf`. Ne pas modifier si vous ne savez pas ce que vous faîtes."
 		}
 	}

@@ -1,5 +1,74 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+- Fixed "RTNETLINK answers: Not supported" error in transparent uplink mode when trying to manually add wireless interface to bridge.
+- Wireless interface is now correctly managed by hostapd, which automatically handles bridge membership and interface configuration.
+- Removed manual IP configuration and interface up commands for wireless interface in transparent bridge mode.
+- Fixed transparent mode to automatically set up DHCP relay to upstream gateway (clients can now get IP addresses from upstream DHCP server).
+- Bridge IP address is now configured before setting default route, preventing gateway unreachable errors.
+- Added proper logging for bridge IP configuration and gateway routing setup.
+
+## [0.5.10] - 2026-05-17
+
+### Fixed
+- Removed the `network_mode` selector as a runtime dependency.
+- Runtime behavior is now derived from DHCP settings only:
+    - local DHCP (`dhcp: true`)
+    - DHCP relay (`dhcp: false` + `dhcp_relay_server`)
+    - transparent LAN uplink (`dhcp: false` + empty relay server)
+- Fixed startup crash caused by leftover `DEVICE_BEHAVIOR` variable reference.
+
+### Changed
+- Updated docs and translation strings to describe DHCP-driven behavior instead of mode selection.
+
+## [0.5.9] - 2026-05-17
+
+### Fixed
+- Renamed the visible networking modes to `offline` and `online`.
+- Reworked `online` mode to behave as a transparent AP that joins the upstream LAN, so clients receive DHCP, DNS and gateway from the upstream network.
+- Kept legacy mode names only as compatibility aliases.
+
+### Changed
+- Simplified the documentation and UI wording to describe AP-only versus AP-on-upstream-LAN behavior instead of bridge terminology.
+
+## [0.5.8] - 2026-05-17
+
+### Fixed
+- Removed the unsafe host bridge reconfiguration introduced by the previous `bridge` mode.
+- `network_mode: bridge` now falls back to a safe `access_point` behavior for compatibility.
+- Resolve the upstream interface from the route to the relay target or default gateway instead of requiring a manual interface override.
+- Fixed legacy boolean option migration in `run.sh`.
+
+### Changed
+- `access_point` mode now keeps the original routed AP design and uses DHCP relay for upstream-managed DHCP/DNS/gateway instead of attempting a Linux bridge on the host.
+
+## [0.5.7] - 2026-05-17
+
+### Added
+- Optional `network_mode` with `bridge` mode to let upstream network provide DHCP and traffic handling for AP clients.
+- Optional `bridge_interface` to control bridge name when creating a Linux bridge in bridge mode.
+
+### Changed
+- In bridge mode, skip local dnsmasq and NAT/forwarding setup.
+
+## [0.5.6] - 2026-05-17
+
+### Added
+- Optional `dhcp_relay_server` config to relay DHCP requests to an upstream DHCP server when local DHCP is disabled.
+
+### Changed
+- Start dnsmasq in relay mode when `dhcp_relay_server` is configured.
+
+## [0.5.5] - 2026-05-17
+
+### Added
+- Optional `upstream_interface` config to explicitly set the client internet routing/NAT interface.
+
+### Fixed
+- Handle VLAN-style upstream names (e.g. `end0.20`) in iptables by using a safe interface matcher.
+
 ## [0.5.4] - 2025-11-03
 
 ### Added
